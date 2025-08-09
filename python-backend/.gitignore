@@ -26,3 +26,4 @@ coverage.xml
 chat_sessions/
 current_session.txt
 chat_history.json
+.kiro

@@ -1,0 +1,49 @@
+{
+  "tech_stack": "html, css ,js",
+  "position": "frontend developer",
+  "question_count": 5,
+  "difficulty": "beginner",
+  "conversation_history": [
+    {
+      "role": "interviewer",
+      "content": "Hello! I'm your AI interviewer for today's frontend developer interview.\n\nI see your tech stack includes: html, css ,js\n\nLet's start with something fundamental. Can you explain what html is and describe one project where you've used it effectively?"
+    },
+    {
+      "role": "candidate",
+      "content": "HTML (HyperText Markup Language) is the standard language used to structure content on the web, defining elements like headings, paragraphs, links, and images.It forms the backbone of every webpage, often paired with CSS for styling and JavaScript for interactivity.I used HTML effectively in a personal portfolio project, where I built a responsive multi-page site to showcase my development skills.It included semantic HTML tags for better accessibility and SEO.The project integrated images, forms, and navigation menus, giving a professional and user-friendly experience."
+    },
+    {
+      "role": "interviewer",
+      "content": "That's a great example of using semantic HTML! Since you mentioned using semantic tags for accessibility and SEO in your portfolio, can you walk me through how you would structure the HTML for a navigation menu that includes a logo, three main links, and a mobile hamburger menu - specifically focusing on which semantic elements you'd choose and why?"
+    },
+    {
+      "role": "candidate",
+      "content": "I\u2019d wrap the entire navigation in a `<header>` element since it represents introductory content or site navigation.Inside it, I\u2019d use a `<nav>` element to semantically indicate the main navigation section.The logo would be wrapped in an `<a>` tag (inside `<div>` or `<span>`), usually with the site name in an `<h1>` for branding and SEO.The three main links would go in an unordered list `<ul>` with each link inside a `<li>` and `<a>` for semantic structure and accessibility.The mobile hamburger menu could be a `<button>` with an accessible label (`aria-label=\"Open menu\"`), ensuring it\u2019s usable for screen readers.Example:```html<header>  <nav>    <a href=\"/\" class=\"logo\">      <h1>MyPortfolio</h1>    </a>    <ul>      <li><a href=\"#about\">About</a></li>      <li><a href=\"#projects\">Projects</a></li>      <li><a href=\"#contact\">Contact</a></li>    </ul>    <button aria-label=\"Open menu\" class=\"hamburger\">\u2630</button>  </nav></header>```"
+    },
+    {
+      "role": "interviewer",
+      "content": "Great structure! I can see you're thinking about accessibility with the `aria-label` and semantic elements. Since you mentioned the mobile hamburger menu, let's dive into the CSS side - can you show me how you would write the CSS to make this navigation responsive? Specifically, how would you hide the regular menu and show the hamburger button on mobile screens, and what CSS properties would you use to achieve a clean mobile-first responsive design?"
+    },
+    {
+      "role": "candidate",
+      "content": "i dont know"
+    },
+    {
+      "role": "interviewer",
+      "content": "That's perfectly fine! Let's take a step back - since you're familiar with the HTML structure we just discussed, can you show me how you would write just the basic CSS to style the navigation horizontally on desktop screens? Focus on making the logo, navigation links, and hamburger button appear in a single row, and don't worry about the mobile responsive part yet."
+    },
+    {
+      "role": "candidate",
+      "content": "i dont know"
+    },
+    {
+      "role": "interviewer",
+      "content": "No worries at all! Let's try something even more basic - can you show me how you would write CSS to change the color of the navigation links to blue and remove the underline from them?"
+    },
+    {
+      "role": "candidate",
+      "content": "i dont know"
+    }
+  ],
+  "is_complete": true
+}

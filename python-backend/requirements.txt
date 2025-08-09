@@ -1,5 +1,12 @@
 langchain
 langchain-community
 langchain-core
-dotenv
+python-dotenv
 langchain-groq
+langchain_google_genai
+langchain-openai
+pydantic>=2.0.0
+pytest>=7.0.0
+pytest-asyncio
+pytest-mock 
+
