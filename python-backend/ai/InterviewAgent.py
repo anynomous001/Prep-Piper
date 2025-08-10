@@ -306,8 +306,6 @@ Let's start with something fundamental. Can you explain what {first_tech} is and
 
             
             
-            
-            
             Example Five:
 
             [System]
