@@ -11,10 +11,10 @@ class ProficiencyLevel(str, Enum):
 
 
 class ConfidenceLevel(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    VERY_HIGH = "very_high"
+    low = "low"
+    medium = "medium"
+    high = "high"
+    very_high = "very_high"
 
 
 class TechnicalSkillAssessment(BaseModel):
@@ -46,6 +46,8 @@ class EvaluationWorkFlowState(BaseModel):
     problem_solving_score: int = Field(default=0, ge=0, le=10, description="Overall score on problem solving")
     analytical_thinking_score: int = Field(default=0, ge=0, le=10, description="Overall score on analytical thinking")
     debugging_potential_score: int = Field(default=0, ge=0, le=10, description="debugging skill")
+    problem_solving_approach: str = Field(default="", description="Overall approach taken on problem solving")
+
 
     technical_skills: List[TechnicalSkillAssessment] = Field(default_factory=list, description="List of technical skill assessments")
     technical_consistency_score: int = Field(default=0, ge=0, le=10, description="Technical consistency score")
