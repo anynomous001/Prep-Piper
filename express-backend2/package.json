@@ -1,0 +1,21 @@
+{
+  "name": "express-backend2",
+  "version": "1.0.0",
+  "main": "dist/interviewAgent.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "tsc && node dist/interviewAgent.js",
+    "dev:watch": "tsc --watch",
+    "start": "node dist/interviewAgent.js",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "undici-types": "^7.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "@types/uuid": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}
