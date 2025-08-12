@@ -1,66 +1,63 @@
-import { createClient } from "@deepgram/sdk"
-import fs  from"fs"
-import dotenv from "dotenv";
+// enhanced-ttsService.ts
+import { EventEmitter } from 'events';
+import { createClient } from '@deepgram/sdk';
+import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import dotenv from 'dotenv';
+
 dotenv.config();
 
+export class TTSService extends EventEmitter {
+  private deepgram: ReturnType<typeof createClient>;
+  private outputDir: string;
 
-// STEP 1: Create a Deepgram client with your API key
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
-
-const text = "Hello, how can I help you today?";
-
-const getAudio = async () => {
-  // STEP 2: Make a request and configure the request with options (such as model choice, audio configuration, etc.)
-  const response = await deepgram.speak.request(
-    { text },
-    {
-      model: "aura-2-thalia-en",
-      encoding: "linear16",
-      container: "wav",
+  constructor() {
+    super();
+    this.deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
+    this.outputDir = path.join(process.cwd(), 'audio_output');
+    if (!fs.existsSync(this.outputDir)) {
+      fs.mkdirSync(this.outputDir, { recursive: true });
     }
-  );
-  // STEP 3: Get the audio stream and headers from the response
-  const stream = await response.getStream();
-  const headers = await response.getHeaders();
-  if (stream) {
-    // STEP 4: Convert the stream to an audio buffer
-    const buffer = await getAudioBuffer(stream);
-    // STEP 5: Write the audio buffer to a file
-    fs.writeFile("output.wav", buffer, (err) => {
-      if (err) {
-        console.error("Error writing audio to file:", err);
-      } else {
-        console.log("Audio file written to output.wav");
+  }
+
+  async speak(text: string, sessionId: string) {
+    this.emit('status', { sessionId, message: 'Starting TTS' });
+    try {
+      const response = await this.deepgram.speak.request(
+        { text },
+        { model: 'aura-2-thalia-en', encoding: 'linear16', container: 'wav' }
+      );
+      const stream = await response.getStream();
+      if (!stream) {
+        throw new Error('No audio stream');
       }
-    });
-  } else {
-    console.error("Error generating audio:", stream);
+
+      const buffer = await this.streamToBuffer(stream);
+      const filename = path.join(this.outputDir, `speech_${sessionId}_${Date.now()}.wav`);
+      fs.writeFileSync(filename, buffer);
+
+      this.emit('audioGenerated', { sessionId, filename, text });
+
+      // Auto-play on Windows
+      const player = spawn('start', ['', filename], { shell: true, detached: true, stdio: 'ignore' });
+      player.on('close', () => this.emit('audioFinished', { sessionId, filename }));
+      player.on('error', (err) => this.emit('error', { sessionId, error: err }));
+
+    } catch (error) {
+      this.emit('error', { sessionId, error });
+    }
   }
 
-  if (headers) {
-    console.log("Headers:", headers);
+  private async streamToBuffer(stream: any): Promise<Buffer> {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const data = Uint8Array.from(chunks.flat());
+    return Buffer.from(data.buffer);
   }
-};
-
-// helper function to convert stream to audio buffer
-//@ts-ignore
-const getAudioBuffer = async (response) => {
-  const reader = response.getReader();
-  const chunks = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    chunks.push(value);
-  }
-
-  const dataArray = chunks.reduce(
-    (acc, chunk) => Uint8Array.from([...acc, ...chunk]),
-    new Uint8Array(0)
-  );
-
-  return Buffer.from(dataArray.buffer);
-};
-
-getAudio();
+}

@@ -12,7 +12,6 @@ if (!apiKey) {
     console.error("❌ Missing DEEPGRAM_API_KEY in .env");
     process.exit(1);
 }
-// Detect audio device per OS
 function getAudioDevice() {
     const platform = process.platform;
     if (platform === "win32") {

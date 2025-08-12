@@ -5,11 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const sdk_1 = require("@deepgram/sdk");
 const fs_1 = __importDefault(require("fs"));
+const child_process_1 = require("child_process");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 // STEP 1: Create a Deepgram client with your API key
 const deepgram = (0, sdk_1.createClient)(process.env.DEEPGRAM_API_KEY);
-const text = "Hello, how can I help you today?";
+const text = "Hello, how can I help you today?  Make a request and configure the request with options (such as model choice, audio configuration, etc.)";
 const getAudio = async () => {
     // STEP 2: Make a request and configure the request with options (such as model choice, audio configuration, etc.)
     const response = await deepgram.speak.request({ text }, {
@@ -30,6 +31,8 @@ const getAudio = async () => {
             }
             else {
                 console.log("Audio file written to output.wav");
+                // Play the audio file automatically (Windows)
+                (0, child_process_1.spawn)("start", ["", "output.wav"], { shell: true, stdio: "ignore", detached: true });
             }
         });
     }

@@ -10,7 +10,6 @@ if (!apiKey) {
   process.exit(1);
 }
 
-// Detect audio device per OS
 function getAudioDevice(): { ffmpegArgs: string[], name: string } {
   const platform = process.platform;
 

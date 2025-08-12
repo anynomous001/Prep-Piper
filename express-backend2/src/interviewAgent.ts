@@ -4,7 +4,7 @@
  * 
 
  */
-
+import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,6 +19,8 @@ import { HumanMessage,SystemMessage } from "@langchain/core/messages";
 interface ConversationMessage {
   role: 'interviewer' | 'candidate';
   content: string;
+  timestamp: Date;
+
 }
 
 interface InterviewSession {
@@ -51,12 +53,13 @@ function loadEnvironment(): boolean {
   }
 }
 
-class TechInterviewer {
+export class InterviewAgent extends EventEmitter {
   private sessions: { [sessionId: string]: InterviewSession } = {};
   private readonly maxQuestions: number = 5;
   private readonly llm: ChatGroq;
   
   constructor() {
+     super();
     try {
       this.llm = new ChatGroq({
                 model:"moonshotai/kimi-k2-instruct",
@@ -95,7 +98,8 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
 
       this.sessions[sessionId].conversation_history.push({
         role: 'interviewer',
-        content: initialMessage
+        content: initialMessage,
+        timestamp: new Date()
       });
       
       return [sessionId, initialMessage];
