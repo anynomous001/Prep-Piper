@@ -102,8 +102,8 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
         timestamp: new Date()
       });
       
-      return [sessionId, initialMessage];
-      
+    this.emit('sessionStarted', { sessionId, initialMessage });
+    return [sessionId, initialMessage];      
     } catch (error) {
       console.log(`❌ Error starting interview: ${error}`);
       return [null, `Error: ${error}`];
@@ -116,24 +116,28 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
   async processAnswer(sessionId: string, answer: string): Promise<string> {
     try {
       if (!(sessionId in this.sessions)) {
+          this.emit('error', { sessionId, error: 'Session not found' });
         return "❌ Session not found! Please start a new interview.";
       }
       
       const session: InterviewSession = this.sessions[sessionId]!;
       
       if (session?.is_complete) {
+        this.emit('interviewComplete', { sessionId, message: 'Interview already completed' });
         return "✅ Interview already completed! Type 'summary' for recap.";
       }
       
       // Validate answer
       if (!answer || answer.trim().length < 3) {
+        this.emit('short_answer', { sessionId, message: "I'd like to hear more from you. Please share your thoughts or ask for clarification if needed." });
         return "🤔 I'd like to hear more from you. Please share your thoughts or ask for clarification if needed.";
       }
       
       // Add candidate's answer to history
       session?.conversation_history.push({
         role: 'candidate',
-        content: answer
+        content: answer,
+        timestamp: new Date()
       });
       
       // Increment question count
@@ -150,13 +154,17 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
       
       session?.conversation_history.push({
         role: 'interviewer',
-        content: nextQuestion
+        content: nextQuestion,
+        timestamp: new Date()
       });
-      
+        this.emit('nextQuestion', { sessionId, question: nextQuestion });
       return nextQuestion;
       
     } catch (error) {
       console.log(`❌ Error processing answer: ${error}`);
+      this.emit('error', { sessionId, error });
+      // Return a generic error message
+      this.emit('error', { sessionId, error: `Error processing your answer: ${error}` });
       return `Error processing your answer: ${error}`;
     }
   }
@@ -167,6 +175,7 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
       const session: InterviewSession | undefined = this.sessions[sessionId];
       
       if (!session) {
+        this.emit('error', { sessionId, error: 'Session not found' });
         return "❌ Session not found! Please start a new interview.";
       }
       
@@ -312,6 +321,8 @@ Type 'summary' for detailed conversation history.`;
       const sessionData = JSON.stringify(this.sessions[sessionId], null, 2);
       
       fs.writeFileSync(filename, sessionData);
+        this.emit('sessionSaved', { sessionId });
+
       console.log(`✅ Session saved to ${filename}`);
     } catch (error) {
       console.log(`❌ Save error: ${error}`);
