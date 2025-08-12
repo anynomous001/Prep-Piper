@@ -10,10 +10,21 @@
     "build": "tsc"
   },
   "dependencies": {
-    "undici-types": "^7.10.0"
+    "@deepgram/sdk": "^4.11.2",
+    "@langchain/core": "^0.3.68",
+    "@langchain/groq": "^0.2.3",
+    "@types/ws": "^8.18.1",
+    "axios": "^1.11.0",
+    "cross-fetch": "^4.1.0",
+    "dotenv": "^17.2.1",
+    "mic": "^2.1.2",
+    "play-sound": "^1.1.6",
+    "undici-types": "^7.10.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/node": "^24.2.1",
+    "@types/play-sound": "^1.1.2",
     "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"

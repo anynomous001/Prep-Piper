@@ -87,7 +87,7 @@ class TechInterviewer {
       };
       
       const firstTech = techStack.split(',')[0]?.trim() || techStack;
-      const initialMessage = `Hello! I'm your AI interviewer for today's ${position} interview.
+      const initialMessage = `Hello! I'm Prep Piper, your AI interviewer for today's ${position} interview.
 
 I see your tech stack includes: ${techStack}
 
