@@ -11,6 +11,8 @@ export class STTService extends EventEmitter {
   private connection: any = null;
   private ffmpegProcess: any = null;
   private isActive = false;
+  private currentSessionId: string | null = null;
+
 
   constructor() {
     super();
@@ -38,16 +40,21 @@ export class STTService extends EventEmitter {
       utterance_end_ms: 1500,
     });
 
-    this.connection.on(LiveTranscriptionEvents.Open, () => {
+     this.connection.on(LiveTranscriptionEvents.Open, () => {
       this.emit('connected', { sessionId });
-      this.captureAudio(sessionId);
+      // Only start FFmpeg capture if we're not using frontend audio chunks
+      if (!this.isFrontendAudioMode()) {
+        this.captureAudio(sessionId);
+      }
     });
+     
 
     this.connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
       const text = data.channel.alternatives[0].transcript;
       this.emit('transcript', {
         sessionId,
         text,
+        confidence: data.channel.alternatives[0].confidence,
         isFinal: data.is_final,
         timestamp: new Date(),
       });
@@ -58,11 +65,63 @@ export class STTService extends EventEmitter {
       this.cleanup();
     });
 
-    this.connection.on(LiveTranscriptionEvents.Error, (error: any) => {
-      this.emit('error', { sessionId, error });
+  this.connection.on(LiveTranscriptionEvents.Error, (error: any) => {
+      console.error('Deepgram STT Error:', error);
+      this.emit('error', { sessionId, error: `Deepgram STT Error: ${error}` });
       this.cleanup();
     });
   }
+  // NEW: Handle audio chunks from frontend
+  processAudioChunk(sessionId: string, chunk: ArrayBuffer | Buffer) {
+    if (!this.connection || this.connection.getReadyState() !== 1) {
+      console.warn('STT connection not ready for audio chunk');
+      return;
+    }
+
+
+    if (!this.isActive || this.currentSessionId !== sessionId) {
+      console.warn('STT not active for this session');
+      return;
+    }
+
+    try {
+      // Convert ArrayBuffer to Buffer if needed
+      let buffer: Buffer;
+      if (chunk instanceof ArrayBuffer) {
+        buffer = Buffer.from(chunk);
+      } else {
+        buffer = chunk;
+      }
+
+      // Send audio data to Deepgram
+      this.connection.send(buffer);
+    } catch (error) {
+      console.error('Error processing audio chunk:', error);
+      this.emit('error', { 
+        sessionId, 
+        error: `Audio chunk processing error: ${error}` 
+      });
+    }
+  }
+
+  // NEW: Start listening without FFmpeg (for frontend audio)
+  async startListeningForFrontendAudio(sessionId: string) {
+    console.log('Starting STT for frontend audio mode');
+    await this.startListening(sessionId);
+  }
+
+  // NEW: Finalize audio stream from frontend
+  finalizeAudioStream(sessionId: string) {
+    if (this.connection && this.currentSessionId === sessionId) {
+      // Send end-of-stream signal to Deepgram
+      try {
+        this.connection.finish();
+      } catch (error) {
+        console.error('Error finalizing audio stream:', error);
+      }
+    }
+  }
+
 
   private captureAudio(sessionId: string) {
     const ffmpegArgs = [
@@ -82,30 +141,82 @@ export class STTService extends EventEmitter {
       }
     });
 
+     this.ffmpegProcess.stderr.on('data', (data: Buffer) => {
+      console.log('FFmpeg stderr:', data.toString());
+    });
+
     this.ffmpegProcess.on('close', (code: number) => {
+      console.log('FFmpeg process closed with code:', code);
       this.emit('audioStopped', { sessionId, code });
       this.cleanup();
     });
 
     this.ffmpegProcess.on('error', (error: any) => {
+      console.error('FFmpeg error:', error);
       this.emit('error', { sessionId, error: `FFmpeg error: ${error}` });
       this.cleanup();
     });
   }
 
   stopListening() {
+    console.log('Stopping STT service');
     this.cleanup();
   }
 
-  private cleanup() {
+  // NEW: Check if we're in frontend audio mode
+ private isFrontendAudioMode(): boolean {
+    // You can add logic here to determine audio source mode
+    // For now, assume frontend audio if no specific server-side config
+    return process.env.AUDIO_SOURCE !== 'server';
+  }
+
+    private cleanup() {
     this.isActive = false;
+    this.currentSessionId = null;
+
     if (this.ffmpegProcess) {
-      this.ffmpegProcess.kill('SIGTERM');
+      try {
+        this.ffmpegProcess.kill('SIGTERM');
+        setTimeout(() => {
+          if (this.ffmpegProcess) {
+            this.ffmpegProcess.kill('SIGKILL');
+          }
+        }, 5000);
+      } catch (error) {
+        console.error('Error killing FFmpeg process:', error);
+      }
       this.ffmpegProcess = null;
     }
+
     if (this.connection) {
-      this.connection.finish();
+      try {
+        this.connection.finish();
+      } catch (error) {
+        console.error('Error closing Deepgram connection:', error);
+      }
       this.connection = null;
     }
+
+    this.emit('stopped');
+  }
+
+  // NEW: Get connection status
+  isConnected(): boolean {
+    return this.connection && this.connection.getReadyState() === 1;
+  }
+
+  // NEW: Get active session
+  getCurrentSessionId(): string | null {
+    return this.currentSessionId;
+  }
+
+  // NEW: Restart connection if needed
+  async restartConnection(sessionId: string) {
+    if (this.isActive) {
+      this.cleanup();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    await this.startListening(sessionId);
   }
 }
+
