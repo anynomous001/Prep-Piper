@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Voice Interview</title>
+</head>
+<body>
+  <h2>Live Voice Interview</h2>
+  <button id="startBtn">Start Interview</button>
+  <div>
+    <h3>Interview Status</h3>
+    <div id="status">Press start to begin</div>
+    <h3>Interim Transcript</h3>
+    <div id="interimTranscript"></div>
+    <h3>Final Transcript</h3>
+    <div id="finalTranscript"></div>
+  </div>
+  <audio id="audioPlayer" controls></audio>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
