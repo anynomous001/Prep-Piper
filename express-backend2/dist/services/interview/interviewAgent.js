@@ -127,13 +127,15 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
             }
             const session = this.sessions[sessionId];
             if (session?.is_complete) {
-                this.emit('interviewComplete', { sessionId, message: 'Interview already completed' });
-                return "✅ Interview already completed! Type 'summary' for recap.";
+                const completionMessage = this.generateCompletionMessage(sessionId);
+                this.emit('interviewComplete', { sessionId, message: completionMessage });
+                return completionMessage;
             }
             // Validate answer
             if (!answer || answer.trim().length < 3) {
-                this.emit('short_answer', { sessionId, message: "I'd like to hear more from you. Please share your thoughts or ask for clarification if needed." });
-                return "🤔 I'd like to hear more from you. Please share your thoughts or ask for clarification if needed.";
+                const shortAnswerMessage = "🤔 I'd like to hear more from you. Please share your thoughts or ask for clarification if needed.";
+                this.emit('shortAnswer', { sessionId, message: shortAnswerMessage });
+                return shortAnswerMessage;
             }
             // Add candidate's answer to history
             session?.conversation_history.push({
@@ -146,7 +148,16 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
             // Check if interview should end
             if (session?.question_count >= this.maxQuestions) {
                 session.is_complete = true;
-                return this.generateCompletionMessage(sessionId);
+                const completionMessage = this.generateCompletionMessage(sessionId);
+                // 👈 Emit completion event
+                this.emit('interviewComplete', {
+                    sessionId,
+                    message: completionMessage,
+                    totalQuestions: session.question_count,
+                    techStack: session.tech_stack,
+                    position: session.position
+                });
+                return completionMessage;
             }
             // Generate next question
             const nextQuestion = await this.generateNextQuestion(sessionId);
@@ -155,15 +166,19 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
                 content: nextQuestion,
                 timestamp: new Date()
             });
-            this.emit('nextQuestion', { sessionId, question: nextQuestion });
+            this.emit('nextQuestion', {
+                sessionId,
+                question: nextQuestion,
+                questionNumber: session.question_count + 1,
+                totalQuestions: this.maxQuestions
+            });
             return nextQuestion;
         }
         catch (error) {
             console.log(`❌ Error processing answer: ${error}`);
-            this.emit('error', { sessionId, error });
-            // Return a generic error message
-            this.emit('error', { sessionId, error: `Error processing your answer: ${error}` });
-            return `Error processing your answer: ${error}`;
+            const errorMessage = `Error processing your answer: ${error}`;
+            this.emit('error', { sessionId, error: errorMessage });
+            return errorMessage;
         }
     }
     async generateNextQuestion(sessionId) {

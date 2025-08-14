@@ -5,17 +5,37 @@ import { motion, useScroll, useTransform } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Mic, Brain, Target, Star, Play, CheckCircle } from "lucide-react"
+import { ArrowRight, Mic, Brain, Target, Star, Play, CheckCircle, LogOut } from "lucide-react"
 import Link from "next/link"
+import { useSession, signOut } from "next-auth/react"
+import {  signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
+
 
 export default function HomePage() {
   const [isVisible, setIsVisible] = useState(false)
   const { scrollYProgress } = useScroll()
   const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"])
 
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+console.log(session)
   useEffect(() => {
     setIsVisible(true)
   }, [])
+
+  const handleInterviewClick = () => {
+  if (status === "loading") return
+  if (!session) {
+    signIn(undefined, { callbackUrl: "/tech-selection" })
+     } else if (!session.user.approved) {
+    router.push("/auth/pending-approval")
+  } else {
+    router.push("/tech-selection")
+  }
+}
+
 
   const containerVariants = {
   hidden: { opacity: 0 },
@@ -33,7 +53,7 @@ const itemVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.6, ease: "easeInOut" },
   },
 };
 
@@ -82,19 +102,33 @@ const floatingVariants = {
                   {item}
                 </motion.a>
               ))}
-              <motion.div
+             <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4, duration: 0.4 }}
               >
-                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 bg-transparent">
-                  Sign In
-                </Button>
+                {useSession().status === "authenticated" ? (
+                  <Button 
+                    variant="outline" 
+                    className="border-red-600 text-red-600 hover:bg-red-50 bg-transparent flex items-center gap-2"
+                    onClick={() => signOut()}
+                  >
+                    Sign Out
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                ) : (
+                  <Link href="/auth/signin">
+                    <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 bg-transparent">
+                      Sign In
+                    </Button>
+                  </Link>
+                )}
               </motion.div>
             </div>
           </div>
         </div>
       </motion.nav>
+     
 
       {/* Hero Section */}
       <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
@@ -142,9 +176,9 @@ const floatingVariants = {
               </motion.div>
 
               <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4">
-                <Link href="/interview">
                   <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
                     <Button
+                    onClick={handleInterviewClick}
                       size="lg"
                       className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold group transition-all duration-300"
                     >
@@ -158,7 +192,6 @@ const floatingVariants = {
                       </motion.div>
                     </Button>
                   </motion.div>
-                </Link>
                 <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
                   <Button
                     variant="outline"
@@ -204,7 +237,6 @@ const floatingVariants = {
 
             <motion.div
               variants={floatingVariants}
-              animate="animate"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.3 }}

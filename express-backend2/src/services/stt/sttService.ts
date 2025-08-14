@@ -25,6 +25,7 @@ export class STTService extends EventEmitter {
       return;
     }
     this.isActive = true;
+    this.currentSessionId = sessionId; // 👈 Set current session
     this.emit('status', { sessionId, message: 'Starting STT service' });
 
     // 1. Open Deepgram live transcription

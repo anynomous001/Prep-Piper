@@ -24,11 +24,15 @@ export class VoiceInterviewServer {
     this.setupSocketHandlers();
     this.setupMiddleware();
     this.setupRoutes();    
+    this.setupServiceEvents(); // 👈 Added this crucial line
+
   }
    private setupRoutes() {
     this.app.use('/api', apiRoutes);
     this.app.get('/health', (_, res) => res.json({ status: 'OK' }));
   }
+
+
 private setupMiddleware() {
   this.app.use(cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:3000"
@@ -39,25 +43,17 @@ private setupMiddleware() {
   // 👈 Serve audio files for frontend
   this.app.use('/audio', express.static(path.join(process.cwd(), 'audio_output')));
 }
+
+
+  // private isFrontendAudioMode() {
+  //   return process.env.FRONTEND_AUDIO_MODE === 'true';
+  // }
+
   private setupSocketHandlers() {
     this.io.on('connection', (socket) => {
       console.log('Client connected:', socket.id);
 
-      // 1. Client starts interview
-      socket.on('startInterview', ({ techStack, position }) => {
-         const [sessionId, initialMessage]  = this.agent.startInterview(techStack, position);
-        // @ts-ignore
-        socket.join(sessionId);
-          socket.emit('interviewStarted', { 
-          sessionId,
-          question: { questionText: initialMessage }
-        });
-       });
-
-
-         socket.on('interimTranscript', (data) => {
-        socket.broadcast.to(data.sessionId).emit('interimTranscript', data);
-      });
+    
 
      
    // 1. Frontend starts interview
@@ -104,25 +100,23 @@ private setupMiddleware() {
    // 👈 This is the crucial part you had that I missed!
   private setupServiceEvents() {
     // STT Service Events
-    this.stt.on('transcript', ({ sessionId, text, isFinal }) => {
-      if (isFinal) {
-        // Forward final transcript to agent
-        this.agent.processAnswer(sessionId, text);
-        // Also emit to frontend
-        this.io.to(sessionId).emit('transcript', { sessionId, text });
-      } else {
-        // Forward interim transcript to frontend
-        this.io.to(sessionId).emit('interimTranscript', { sessionId, text });
-      }
-    });
+     this.stt.on('connected', ({ sessionId }) => {
+    this.io.to(sessionId).emit('sttConnected', { sessionId });
+  });
 
-    this.stt.on('connected', ({ sessionId }) => {
-      this.io.to(sessionId).emit('sttConnected', { sessionId });
-    });
+  this.stt.on('audioStopped', ({ sessionId }) => {
+    // Notify frontend that STT has stopped
+    this.io.to(sessionId).emit('sttStopped', { sessionId });
+  });
 
-    this.stt.on('audioStopped', ({ sessionId }) => {
-      this.io.to(sessionId).emit('sttStopped', { sessionId });
-    });
+  this.stt.on('transcript', ({ sessionId, text, isFinal }) => {
+    if (isFinal) {
+      this.agent.processAnswer(sessionId, text);
+      this.io.to(sessionId).emit('transcript', { sessionId, text });
+    } else {
+      this.io.to(sessionId).emit('interimTranscript', { sessionId, text });
+    }
+  });
 
     // TTS Service Events
     this.tts.on('audioGenerated', ({ sessionId, audioUrl, text, duration }) => {

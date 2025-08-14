@@ -1,21 +1,31 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { apiClient } from "@/lib/api"
 import { useInterviewWebSocket } from "./use-interview-websocket"
-import type { InterviewSession, InterviewQuestion, InterviewResponse } from "@/lib/types"
+import type {
+  InterviewSession,
+  InterviewQuestion,
+  InterviewResponse,
+} from "@/lib/types"
 
-export type InterviewState = "idle" | "active" | "processing" | "waiting_for_next" | "completed"
+export type InterviewState =
+  | "idle"
+  | "active"
+  | "processing"
+  | "waiting_for_next"
+  | "completed"
 
 export function useInterview() {
   const [session, setSession] = useState<InterviewSession | null>(null)
-  const [currentQuestion, setCurrentQuestion] = useState<InterviewQuestion | null>(null)
+  const [currentQuestion, setCurrentQuestion] =
+    useState<InterviewQuestion | null>(null)
   const [transcript, setTranscript] = useState<string[]>([])
   const [interimTranscript, setInterimTranscript] = useState("")
   const [isRecording, setIsRecording] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
-  const [interviewState, setInterviewState] = useState<InterviewState>("idle")
+  const [interviewState, setInterviewState] =
+    useState<InterviewState>("idle")
   const [progress, setProgress] = useState(0)
   const [responses, setResponses] = useState<InterviewResponse[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -25,11 +35,30 @@ export function useInterview() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
-  const { isConnected, sendMessage } = useInterviewWebSocket({
+  const {
+    connect,
+    isConnected,
+    sendMessage,
+  } = useInterviewWebSocket({
     sessionId: session?.id || null,
-    onStartInterview: (data) => {
-      setCurrentQuestion(data.question)
+    onStartInterview: ({ sessionId, question }) => {
+      // Build session object
+      const newSession: InterviewSession = {
+        id: sessionId,
+        userId: "user-123",
+        status: "active",
+        currentQuestionIndex: 0,
+        totalQuestions: 5,
+        startedAt: new Date(),
+        progress: 20,
+      }
+      setSession(newSession)
+      setCurrentQuestion(question)
       setInterviewState("active")
+      setProgress(20)
+      // Initialize audio/speech
+      initializeSpeechRecognition()
+      initializeMediaRecorder()
     },
     onInterimTranscript: (data) => {
       setInterimTranscript(data.text)
@@ -41,14 +70,19 @@ export function useInterview() {
     },
     onAudioGenerated: (data) => {
       setAudioUrl(data.audioUrl)
+      setInterviewState("waiting_for_next")
     },
     onInterviewComplete: (data) => {
       setInterviewState("completed")
-      setResponses(data.responses)
+      setProgress(100)
+      if (data.responses) {
+        setResponses(data.responses)
+      }
+      cleanup()
     },
-    onError: (error) => {
-      setError(error)
-      console.error("WebSocket error:", error)
+    onError: (err) => {
+      setError(err)
+      console.error("WebSocket error:", err)
     },
   })
 
@@ -62,36 +96,34 @@ export function useInterview() {
       recognition.onresult = (event: any) => {
         let interim = ""
         let final = ""
-
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript
+          const t = event.results[i][0].transcript
           if (event.results[i].isFinal) {
-            final += transcript
+            final += t
           } else {
-            interim += transcript
+            interim += t
           }
         }
-
         if (interim && session?.id) {
           sendMessage("interimTranscript", {
             text: interim,
-            confidence: event.results[event.results.length - 1][0].confidence,
+            confidence:
+              event.results[event.results.length - 1][0].confidence,
           })
         }
-
-        if (final && session?.id && currentQuestion?.id) {
+        if (final && session?.id) {
           sendMessage("transcript", {
             text: final,
-            questionId: currentQuestion.id,
-            confidence: event.results[event.results.length - 1][0].confidence,
+            confidence:
+              event.results[event.results.length - 1][0].confidence,
           })
         }
       }
 
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error)
+      recognition.onerror = (e: any) => {
+        console.error("Speech recognition error:", e.error)
         setIsRecording(false)
-        setError(`Speech recognition error: ${event.error}`)
+        setError(`Speech recognition error: ${e.error}`)
       }
 
       recognition.onend = () => {
@@ -100,18 +132,18 @@ export function useInterview() {
 
       recognitionRef.current = recognition
     }
-  }, [session?.id, currentQuestion?.id, sendMessage])
+  }, [session?.id, sendMessage])
 
   const initializeMediaRecorder = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      })
+      const recorder = new MediaRecorder(stream)
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
-
-          // Send audio chunk to backend for real-time processing
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data)
           if (session?.id) {
             const reader = new FileReader()
             reader.onload = () => {
@@ -120,87 +152,55 @@ export function useInterview() {
                 isLast: false,
               })
             }
-            reader.readAsArrayBuffer(event.data)
+            reader.readAsArrayBuffer(e.data)
           }
         }
       }
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" })
+      recorder.onstop = async () => {
+        const blob = new Blob(audioChunksRef.current, {
+          type: "audio/wav",
+        })
         audioChunksRef.current = []
-
-        // Submit final audio to backend
-        if (session?.id && currentQuestion?.id) {
-          const finalTranscript = transcript[transcript.length - 1] || ""
-          const response = await apiClient.submitResponse(session.id, currentQuestion.id, finalTranscript, audioBlob)
-
-          if (response.success && response.data) {
-            setResponses((prev) => [...prev, response.data!])
-          } else {
-            setError(response.error || "Failed to submit response")
-          }
-        }
-
-        // Send final audio chunk
         if (session?.id) {
           sendMessage("audioChunk", {
-            chunk: await audioBlob.arrayBuffer(),
+            chunk: await blob.arrayBuffer(),
             isLast: true,
           })
         }
       }
 
-      mediaRecorderRef.current = mediaRecorder
-    } catch (error) {
-      console.error("Failed to initialize media recorder:", error)
+      mediaRecorderRef.current = recorder
+    } catch (e) {
+      console.error("Failed to init recorder:", e)
       setError("Failed to access microphone")
     }
-  }, [session?.id, currentQuestion?.id, transcript, sendMessage])
+  }, [session?.id, sendMessage])
 
-  const startInterview = useCallback(async () => {
-    try {
+  const startInterview = useCallback(
+    async (
+      techStack = "JavaScript, React, Node.js",
+      position = "Software Developer"
+    ) => {
       setError(null)
-
-      // Create new session
-      const sessionResponse = await apiClient.createSession("user-123") // Replace with actual user ID
-      if (!sessionResponse.success || !sessionResponse.data) {
-        throw new Error(sessionResponse.error || "Failed to create session")
-      }
-
-      setSession(sessionResponse.data)
       setInterviewState("active")
-      setProgress(0)
+      await connect()
+      sendMessage("startInterview", { techStack, position })
+    },
+    [connect, sendMessage]
+  )
 
-      // Initialize recognition and recording
-      initializeSpeechRecognition()
-      await initializeMediaRecorder()
-
-      // Get first question
-      const questionResponse = await apiClient.getNextQuestion(sessionResponse.data.id)
-      if (questionResponse.success && questionResponse.data) {
-        setCurrentQuestion(questionResponse.data)
-
-        // Generate audio for question
-        const audioResponse = await apiClient.generateQuestionAudio(questionResponse.data.id)
-        if (audioResponse.success && audioResponse.data) {
-          setAudioUrl(audioResponse.data.audioUrl)
-        }
-      }
-    } catch (error) {
-      console.error("Failed to start interview:", error)
-      setError(error instanceof Error ? error.message : "Failed to start interview")
-      setInterviewState("idle")
-    }
-  }, [initializeSpeechRecognition, initializeMediaRecorder])
-
-  const startRecording = useCallback(async () => {
-    if (recognitionRef.current && mediaRecorderRef.current && interviewState === "active") {
+  const startRecording = useCallback(() => {
+    if (
+      recognitionRef.current &&
+      mediaRecorderRef.current &&
+      interviewState === "active"
+    ) {
       setIsRecording(true)
       setInterimTranscript("")
       setError(null)
-
       recognitionRef.current.start()
-      mediaRecorderRef.current.start(1000) // Collect data every second
+      mediaRecorderRef.current.start(1000)
     }
   }, [interviewState])
 
@@ -208,7 +208,10 @@ export function useInterview() {
     if (recognitionRef.current && isRecording) {
       recognitionRef.current.stop()
     }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
       mediaRecorderRef.current.stop()
     }
     setIsRecording(false)
@@ -220,11 +223,9 @@ export function useInterview() {
       if (audioRef.current) {
         audioRef.current.pause()
       }
-
       audioRef.current = new Audio(audioUrl)
       audioRef.current.play()
       setIsPlaying(true)
-
       audioRef.current.onended = () => {
         setIsPlaying(false)
       }
@@ -238,76 +239,35 @@ export function useInterview() {
     }
   }, [])
 
-  const nextQuestion = useCallback(async () => {
-    if (!session?.id) return
-
-    try {
-      setError(null)
-      const questionResponse = await apiClient.getNextQuestion(session.id)
-
-      if (questionResponse.success && questionResponse.data) {
-        setCurrentQuestion(questionResponse.data)
-        setInterviewState("active")
-        setProgress((questionResponse.data.questionIndex + 1) * 20)
-
-        // Generate audio for new question
-        const audioResponse = await apiClient.generateQuestionAudio(questionResponse.data.id)
-        if (audioResponse.success && audioResponse.data) {
-          setAudioUrl(audioResponse.data.audioUrl)
-        }
-      } else {
-        // No more questions, complete interview
-        await endInterview()
-      }
-    } catch (error) {
-      console.error("Failed to get next question:", error)
-      setError("Failed to load next question")
-    }
-  }, [session?.id])
-
-  const endInterview = useCallback(async () => {
-    if (!session?.id) return
-
-    try {
-      await apiClient.endSession(session.id)
-      setInterviewState("completed")
-      setProgress(100)
-
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop()
-      }
-      if (audioRef.current) {
-        audioRef.current.pause()
-      }
-
-      setIsRecording(false)
-      setIsPlaying(false)
-    } catch (error) {
-      console.error("Failed to end interview:", error)
-      setError("Failed to end interview properly")
-    }
-  }, [session?.id])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop()
-      }
-      if (audioRef.current) {
-        audioRef.current.pause()
-      }
-    }
+  const nextQuestion = useCallback(() => {
+    setInterviewState("waiting_for_next")
+    setProgress((p) => Math.min(p + 20, 100))
   }, [])
 
+  const endInterview = useCallback(() => {
+    setInterviewState("completed")
+    setProgress(100)
+    cleanup()
+  }, [])
+
+  const cleanup = useCallback(() => {
+    if (recognitionRef.current) recognitionRef.current.stop()
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
+      mediaRecorderRef.current.stop()
+    }
+    if (audioRef.current) audioRef.current.pause()
+    setIsRecording(false)
+    setIsPlaying(false)
+  }, [])
+
+  useEffect(() => {
+    return cleanup
+  }, [cleanup])
+
   return {
-    // State
     session,
     currentQuestion: currentQuestion?.questionText || "",
     transcript,
@@ -321,7 +281,6 @@ export function useInterview() {
     error,
     isConnected,
 
-    // Actions
     startInterview,
     stopRecording,
     startRecording,
@@ -330,7 +289,6 @@ export function useInterview() {
     nextQuestion,
     endInterview,
 
-    // Utilities
     clearError: () => setError(null),
   }
 }
