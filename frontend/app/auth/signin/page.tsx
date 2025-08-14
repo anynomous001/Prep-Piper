@@ -9,36 +9,38 @@ import { motion } from "framer-motion"
 import { Mail, ArrowRight, Loader2 } from "lucide-react"
 
 export default function SignInPage() {
-//   const { data: session } = useSession()
+  const { data: session } = useSession()
   const router = useRouter()
 
-//   useEffect(() => {
-//     if (session) {
-//       router.push("/")
-//     }
-//   }, [session, router])
+  useEffect(() => {
+    if (session) {
+      router.push("/")
+    }
+  }, [session, router])
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState("")
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || "/"
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setMessage("")
 
     try {
-      const result = await signIn("email", {
+      const result = await signIn("credentials", {
         email,
         redirect: true,
         callbackUrl,
       })
 
+
       if (result?.error) {
-        setMessage("Failed to send sign-in email. Please try again.")
-      } else {
-        setMessage("Check your email for a sign-in link!")
+        setMessage("Invalid email or not approved for access.")
+      } else if (result?.ok) {
+        // Redirect after successful sign in
+        window.location.href = callbackUrl
       }
     } catch (error) {
       setMessage("An error occurred. Please try again.")

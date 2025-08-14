@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Montserrat, Open_Sans } from "next/font/google"
+import { ThemeProvider } from "next-themes"
 import AuthProvider from "@/components/providers/session-provider"
 import "./globals.css"
 
@@ -20,20 +21,27 @@ const openSans = Open_Sans({
 
 export const metadata: Metadata = {
   title: "Prep Piper - Master Your Interviews with AI",
-  description:
-    "Practice interviews with AI-powered feedback and personalized coaching. Boost your confidence with real-time insights.",
-  generator: "v0.app",
+  description: "Practice interviews with AI-powered feedback and personalized coaching.",
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="en" className={`${montserrat.variable} ${openSans.variable} antialiased`}>
-      <body>
-        <AuthProvider>{children}</AuthProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${montserrat.variable} ${openSans.variable} antialiased`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+          disableTransitionOnChange={false}
+        >
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

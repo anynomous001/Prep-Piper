@@ -10,6 +10,7 @@ import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 import {  signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 
 export default function HomePage() {
@@ -107,22 +108,27 @@ const floatingVariants = {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4, duration: 0.4 }}
               >
-                {useSession().status === "authenticated" ? (
-                  <Button 
-                    variant="outline" 
-                    className="border-red-600 text-red-600 hover:bg-red-50 bg-transparent flex items-center gap-2"
-                    onClick={() => signOut()}
-                  >
-                    Sign Out
-                    <LogOut className="w-4 h-4" />
-                  </Button>
-                ) : (
-                  <Link href="/auth/signin">
-                    <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 bg-transparent">
-                      Sign In
-                    </Button>
-                  </Link>
-                )}
+              <div className="flex items-center space-x-4">
+  <ThemeToggle />
+  {session ? (
+    <Button
+      variant="outline"
+      onClick={() => signOut()}
+      className="border-primary text-primary hover:bg-primary/10"
+    >
+      <LogOut className="w-4 h-4 mr-2" />
+      Sign Out
+    </Button>
+  ) : (
+    <Button
+      variant="outline"
+      onClick={() => signIn()}
+      className="border-primary text-primary hover:bg-primary/10"
+    >
+      Sign In
+    </Button>
+  )}
+</div>
               </motion.div>
             </div>
           </div>

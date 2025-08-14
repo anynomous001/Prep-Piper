@@ -17,6 +17,7 @@ console.log("Raw Approved Emails:", process.env.APPROVED_EMAILS)
 export const authOptions: AuthOptions = {
   providers: [
     Credentials({
+    id: "credentials", // Add explicit ID
       name: "Email",
       credentials: { email: { label: "Email", type: "email" } },
       async authorize(credentials: Partial<Record<"email", unknown>>) {
