@@ -14,6 +14,8 @@ import type {
 interface UseInterviewWebSocketProps {
   sessionId: string | null
   onStartInterview?: (data: StartInterviewData) => void
+  onInterviewStarted?: (data: any) => void
+  onSttConnected?: (data: { sessionId: string }) => void
   onInterimTranscript?: (data: InterimTranscriptData) => void
   onTranscript?: (data: TranscriptData) => void
   onAudioGenerated?: (data: AudioGeneratedData) => void
@@ -25,7 +27,9 @@ interface UseInterviewWebSocketProps {
 export function useInterviewWebSocket({
   sessionId,
   onStartInterview,
+  onInterviewStarted,
   onInterimTranscript,
+  onSttConnected,
   onTranscript,
   onAudioGenerated,
   onInterviewComplete,
@@ -36,10 +40,15 @@ export function useInterviewWebSocket({
   const isConnectedRef = useRef(false)
 
   const connect = useCallback(async () => {
-    if (!sessionId || isConnectedRef.current) return
+    console.log('🔌 connect() called with sessionId:', sessionId)
+    
+    if (isConnectedRef.current) {
+      console.log('Already connected')
+      return
+    }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001"
-    wsRef.current = new WebSocketManager(`${wsUrl}?sessionId=${sessionId}`)
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+    wsRef.current = new WebSocketManager(wsUrl)
 
     try {
       await wsRef.current.connect()
@@ -48,6 +57,12 @@ export function useInterviewWebSocket({
       // Set up event handlers
       if (onStartInterview) {
         wsRef.current.on("startInterview", onStartInterview)
+      }
+      if (onInterviewStarted) {
+        wsRef.current.on("interviewStarted", onInterviewStarted)
+      }
+      if (onSttConnected) {
+        wsRef.current.on("sttConnected", onSttConnected)
       }
       if (onInterimTranscript) {
         wsRef.current.on("interimTranscript", onInterimTranscript)
@@ -77,7 +92,9 @@ export function useInterviewWebSocket({
   }, [
     sessionId,
     onStartInterview,
+    onInterviewStarted,
     onInterimTranscript,
+    onSttConnected,
     onTranscript,
     onAudioGenerated,
     onInterviewComplete,
@@ -96,10 +113,12 @@ export function useInterviewWebSocket({
   const sendMessage = useCallback(
     (type: string, data: any) => {
       if (wsRef.current?.isConnected) {
-        wsRef.current.send({ type, sessionId: sessionId!, data })
+        wsRef.current.send({ type, data })
+      } else {
+        console.error("WebSocket is not connected")
       }
     },
-    [sessionId],
+    []
   )
 
   useEffect(() => {

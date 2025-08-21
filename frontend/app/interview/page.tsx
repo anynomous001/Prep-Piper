@@ -49,6 +49,8 @@ export default function InterviewPage() {
     return () => clearInterval(interval)
   }, [interviewState])
 
+
+  console.log(interviewState,'<INTERVIEW_STATE>')
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60

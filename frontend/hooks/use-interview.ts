@@ -17,15 +17,13 @@ export type InterviewState =
 
 export function useInterview() {
   const [session, setSession] = useState<InterviewSession | null>(null)
-  const [currentQuestion, setCurrentQuestion] =
-    useState<InterviewQuestion | null>(null)
+  const [currentQuestion, setCurrentQuestion] = useState<InterviewQuestion | null>(null)
   const [transcript, setTranscript] = useState<string[]>([])
   const [interimTranscript, setInterimTranscript] = useState("")
   const [isRecording, setIsRecording] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
-  const [interviewState, setInterviewState] =
-    useState<InterviewState>("idle")
+  const [interviewState, setInterviewState] = useState<InterviewState>("idle")
   const [progress, setProgress] = useState(0)
   const [responses, setResponses] = useState<InterviewResponse[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +39,12 @@ export function useInterview() {
     sendMessage,
   } = useInterviewWebSocket({
     sessionId: session?.id || null,
+    
+    onSttConnected: ({ sessionId }) => {
+      console.log("STT is now connected for", sessionId)
+      setInterviewState("active")
+    },
+
     onStartInterview: ({ sessionId, question }) => {
       // Build session object
       const newSession: InterviewSession = {
@@ -56,10 +60,29 @@ export function useInterview() {
       setCurrentQuestion(question)
       setInterviewState("active")
       setProgress(20)
-      // Initialize audio/speech
       initializeSpeechRecognition()
       initializeMediaRecorder()
     },
+
+    onInterviewStarted: ({ sessionId, question }) => {
+      // Handle backend's interviewStarted event
+      const newSession: InterviewSession = {
+        id: sessionId,
+        userId: "user-123",
+        status: "active",
+        currentQuestionIndex: 0,
+        totalQuestions: 5,
+        startedAt: new Date(),
+        progress: 20,
+      }
+      setSession(newSession)
+      setCurrentQuestion(question)
+      setInterviewState("active")
+      setProgress(20)
+      initializeSpeechRecognition()
+      initializeMediaRecorder()
+    },
+
     onInterimTranscript: (data) => {
       setInterimTranscript(data.text)
     },
@@ -86,6 +109,18 @@ export function useInterview() {
     },
   })
 
+  // Auto-start interview from preferences
+  useEffect(() => {
+    const preferences = localStorage.getItem('interviewPreferences')
+    if (preferences && interviewState === 'idle') {
+      const { sessionId, techStack, position } = JSON.parse(preferences)
+      console.log("Auto-starting interview with preferences:", { sessionId, techStack, position })
+      
+      startInterview(techStack, position)
+      localStorage.removeItem('interviewPreferences')
+    }
+  }, [interviewState])
+
   const initializeSpeechRecognition = useCallback(() => {
     if (typeof window !== "undefined" && "webkitSpeechRecognition" in window) {
       const recognition = new (window as any).webkitSpeechRecognition()
@@ -107,15 +142,13 @@ export function useInterview() {
         if (interim && session?.id) {
           sendMessage("interimTranscript", {
             text: interim,
-            confidence:
-              event.results[event.results.length - 1][0].confidence,
+            confidence: event.results[event.results.length - 1][0].confidence,
           })
         }
         if (final && session?.id) {
           sendMessage("transcript", {
             text: final,
-            confidence:
-              event.results[event.results.length - 1][0].confidence,
+            confidence: event.results[event.results.length - 1][0].confidence,
           })
         }
       }

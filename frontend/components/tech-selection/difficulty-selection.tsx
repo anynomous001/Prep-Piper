@@ -7,9 +7,9 @@ import { DIFFICULTY_LEVELS, type DifficultyId } from "@/lib/constants"
 interface DifficultySelectionProps {
   selectedDifficulty: DifficultyId | null
   onDifficultySelect: (difficulty: DifficultyId) => void
-  onNext: () => void
   onBack: () => void
   canProceed: boolean
+  onBegin: () => void
 }
 
 const difficultyIcons = {
@@ -21,7 +21,7 @@ const difficultyIcons = {
 export function DifficultySelection({
   selectedDifficulty,
   onDifficultySelect,
-  onNext,
+  onBegin,
   onBack,
   canProceed,
 }: DifficultySelectionProps) {
@@ -93,7 +93,7 @@ export function DifficultySelection({
         </motion.button>
 
         <motion.button
-          onClick={onNext}
+          onClick={() => onBegin()}
           disabled={!canProceed}
           whileHover={{ scale: canProceed ? 1.05 : 1 }}
           whileTap={{ scale: canProceed ? 0.95 : 1 }}
