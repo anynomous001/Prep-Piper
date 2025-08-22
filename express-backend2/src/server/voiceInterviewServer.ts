@@ -67,7 +67,7 @@ export class VoiceInterviewServer {
       console.log('Client connected:', socket.id);
 
       // Frontend starts interview
-      socket.on('startInterview', async ({ techStack, position }) => {
+      socket.on('interviewStarted', async ({ techStack, position }) => {
         try {
           console.log('Starting interview with:', { techStack, position });
           
@@ -87,10 +87,6 @@ export class VoiceInterviewServer {
           //@ts-ignore
           await this.stt.startListeningForFrontendAudio(sessionId);
 
-          socket.emit('interviewStarted', { 
-            sessionId,
-            question: { questionText: initialMessage }
-          });
           
           console.log('Interview started successfully:', sessionId);
         } catch (error) {
@@ -168,7 +164,6 @@ export class VoiceInterviewServer {
       this.io.to(sessionId).emit('audioFinished', { sessionId });
     });
 
-    // Interview Agent Events
     this.agent.on('nextQuestion', ({ sessionId, question, questionNumber, totalQuestions }) => {
       this.stt.stopListening();
       this.tts.speak(question, sessionId);
@@ -199,10 +194,20 @@ export class VoiceInterviewServer {
 
     this.agent.on('sessionStarted', ({ sessionId, initialMessage }) => {
       console.log("Agent sessionStarted:", sessionId, initialMessage);
+
+    this.io.to(sessionId).emit('interviewStarted', {
+    
+      sessionId,
+      question: { questionText: initialMessage }
+    });
+
+  console.log("Emitting interviewStarted event:", {
+        sessionId,
+        question: { questionText: initialMessage }
+      }),
       this.tts.speak(initialMessage, sessionId);
     });
 
-    // Error handling for all services
     const services = [this.stt, this.tts, this.agent].filter(Boolean);
     
     services.forEach((service) => {

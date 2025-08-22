@@ -1,9 +1,3 @@
-/**
- * A simplified and robust technical interview agent with enhanced error handling.
- * Converted from Python to TypeScript
- *
-
- */
 import { EventEmitter } from 'events';
 export declare class InterviewAgent extends EventEmitter {
     private sessions;

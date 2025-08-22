@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +55,25 @@ export default function InterviewPage() {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
+
+   const playRawPCM = useCallback(async (url: string) => {
+    const response = await fetch(url)
+    const arrayBuffer = await response.arrayBuffer()
+    const audioCtx = new AudioContext({ sampleRate: 24000 })
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+    const source = audioCtx.createBufferSource()
+    source.buffer = audioBuffer
+    source.connect(audioCtx.destination)
+    source.start()
+  }, [])
+
+ const handlePlay = () => {
+    if (audioUrl?.endsWith(".l16")) {
+      playRawPCM(audioUrl)
+    } else {
+      playAudio()
+    }
   }
 
   if (interviewState === "idle") {
@@ -198,7 +217,13 @@ export default function InterviewPage() {
             />
 
             {/* Audio Controls */}
-            <AudioControls audioUrl={audioUrl} isPlaying={isPlaying} onPlay={playAudio} onPause={pauseAudio} />
+             <AudioControls
+      audioUrl={audioUrl}
+      isPlaying={isPlaying}
+      onPlay={handlePlay}
+      onPause={pauseAudio}
+    />
+            {/* <AudioControls audioUrl={audioUrl} isPlaying={isPlaying} onPlay={playAudio} onPause={pauseAudio} /> */}
 
             {/* Microphone Controls */}
             <MicrophoneControls

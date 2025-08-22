@@ -62,7 +62,7 @@ class VoiceInterviewServer {
         this.io.on('connection', (socket) => {
             console.log('Client connected:', socket.id);
             // Frontend starts interview
-            socket.on('startInterview', async ({ techStack, position }) => {
+            socket.on('interviewStarted', async ({ techStack, position }) => {
                 try {
                     console.log('Starting interview with:', { techStack, position });
                     // Ensure techStack is a string
@@ -76,10 +76,10 @@ class VoiceInterviewServer {
                     socket.join(sessionId);
                     //@ts-ignore
                     await this.stt.startListeningForFrontendAudio(sessionId);
-                    socket.emit('interviewStarted', {
-                        sessionId,
-                        question: { questionText: initialMessage }
-                    });
+                    // socket.emit('interviewStarted', { 
+                    //   sessionId,
+                    //   question: { questionText: initialMessage }
+                    // });
                     console.log('Interview started successfully:', sessionId);
                 }
                 catch (error) {
@@ -175,6 +175,11 @@ class VoiceInterviewServer {
         });
         this.agent.on('sessionStarted', ({ sessionId, initialMessage }) => {
             console.log("Agent sessionStarted:", sessionId, initialMessage);
+            // Emit to frontend so it displays the question
+            this.io.to(sessionId).emit('interviewStarted', {
+                sessionId,
+                question: { questionText: initialMessage }
+            });
             this.tts.speak(initialMessage, sessionId);
         });
         // Error handling for all services

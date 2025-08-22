@@ -1,133 +1,184 @@
-// enhanced-ttsService.ts
+import fs from "fs";
+import { createClient,LiveTTSEvents } from "@deepgram/sdk";
+import dotenv from "dotenv";
 import { EventEmitter } from 'events';
-import { createClient } from '@deepgram/sdk';
-import { spawn } from 'child_process';
-import * as fs from 'fs';
 import * as path from 'path';
-import dotenv from 'dotenv';
+import { spawn } from 'child_process';
+
+
 
 dotenv.config();
 
+// Add a wav audio container header to the file if you want to play the audio
+// using the AudioContext or media player like VLC, Media Player, or Apple Music
+// Without this header in the Chrome browser case, the audio will not play.
+// prettier-ignore
+const wavHeader = [
+0x52, 0x49, 0x46, 0x46, // "RIFF"
+0x00, 0x00, 0x00, 0x00, // Placeholder for file size
+0x57, 0x41, 0x56, 0x45, // "WAVE"
+0x66, 0x6D, 0x74, 0x20, // "fmt "
+0x10, 0x00, 0x00, 0x00, // Chunk size (16)
+0x01, 0x00,             // Audio format (1 for PCM)
+0x01, 0x00,             // Number of channels (1)
+0x80, 0xBB, 0x00, 0x00, // Sample rate (48000)
+0x00, 0xEE, 0x02, 0x00, // Byte rate (48000 * 2)
+0x02, 0x00,             // Block align (2)
+0x10, 0x00,             // Bits per sample (16)
+0x64, 0x61, 0x74, 0x61, // "data"
+0x00, 0x00, 0x00, 0x00  // Placeholder for data size
+];
 export class TTSService extends EventEmitter {
-  private deepgram: ReturnType<typeof createClient>;
+  private deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
   private outputDir: string;
-    private currentSessionId: string | null = null;
-
+  private currentSessionId: string | null = null;
 
   constructor() {
     super();
-    this.deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
-    this.outputDir = path.join(process.cwd(), 'audio_output');
-    if (!fs.existsSync(this.outputDir)) {
-      fs.mkdirSync(this.outputDir, { recursive: true });
-    }
+     this.outputDir = path.join(process.cwd(), 'audio_output');
+        if (!fs.existsSync(this.outputDir)) {
+          fs.mkdirSync(this.outputDir, { recursive: true });
+        }
   }
 
-  async speak(text: string, sessionId: string) {
-    this.emit('status', { sessionId, message: 'Starting TTS' });
-        this.currentSessionId = sessionId;
 
-    
-    try {
-      const response = await this.deepgram.speak.request(
-        { text },
-        { model: 'aura-2-thalia-en', encoding: 'linear16', container: 'wav' }
-      );
-      const stream = await response.getStream();
-      if (!stream) {
-        throw new Error('No audio stream');
-      }
-
-      const buffer = await this.streamToBuffer(stream);
-          const timestamp = Date.now();
-      const filename = path.join(this.outputDir, `speech_${sessionId}_${Date.now()}.wav`);
-      fs.writeFileSync(filename, buffer);
-      const audioUrl = `/audio/speech_${sessionId}_${timestamp}.wav`;
-      this.emit('audioGenerated', { 
-        sessionId, 
-        filename,
-        timestamp: new Date(),   
-             audioUrl, 
- text 
+speak = async (text: string, sessionId: string) => {
+  this.emit('status', { sessionId, message: 'Starting TTS' });
+  this.currentSessionId = sessionId;
+  
+  try {
+  const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+  
+const dgConnection = deepgram.speak.live({
+  model: "aura-2-thalia-en",
+  encoding: "linear16",
+  sample_rate: 48000,
 });
 
-     if (process.platform === 'win32') {
-        this.playAudio(filename, sessionId);
+
+let audioBuffer = Buffer.from(wavHeader);
+
+dgConnection.on(LiveTTSEvents.Open, () => {
+  console.log("Connection opened");
+
+  dgConnection.sendText(text);
+
+  dgConnection.flush();
+
+  dgConnection.on(LiveTTSEvents.Close, () => {
+    console.log("Connection closed");
+  });
+
+  dgConnection.on(LiveTTSEvents.Metadata, (data) => {
+    console.dir(data, { depth: null });
+  });
+
+  dgConnection.on(LiveTTSEvents.Audio, (data) => {
+    console.log("Deepgram audio data received");
+    // Concatenate the audio chunks into a single buffer
+    const buffer = Buffer.from(data);
+    audioBuffer = Buffer.concat([audioBuffer, buffer]);
+  });
+
+  dgConnection.on(LiveTTSEvents.Flushed, () => {
+    console.log("Deepgram Flushed");
+    // Write the buffered audio data to a file when the flush event is received
+    writeFile();
+  });
+
+  dgConnection.on(LiveTTSEvents.Error, (err) => {
+    console.error(err);
+  });
+});
+
+const filename = `speech_${sessionId}_${Date.now()}.wav`;
+const filePath = path.join(this.outputDir, filename);
+
+      const audioUrl = `/audio/${filename}`;
+
+      const writeFile = () => {
+  if (audioBuffer.length > 0) {
+      fs.writeFile(filePath, audioBuffer, (err) => {
+      if (err) {
+        console.error("Error writing audio file:", err);
       } else {
-        // For other platforms, just emit audioFinished after a delay
-        setTimeout(() => {
-          this.emit('audioFinished', { sessionId, filename, audioUrl });
-        }, this.estimateAudioDuration(buffer.length) * 1000);
+        console.log(`Audio file saved as ${filename}`);
+// ✅ Emit audioGenerated after successful write
+            this.emit('audioGenerated', {
+              sessionId,
+              audioUrl,
+              text,
+              timestamp: new Date(),
+            });
+
+            // ✅ Now play audio AFTER file exists
+            if (process.platform === 'win32') {
+              this.playAudio(filePath, sessionId, audioUrl);
+            } else {
+              setTimeout(() => {
+                this.emit('audioFinished', { sessionId, audioUrl });
+              }, this.estimateAudioDuration(audioBuffer.length) * 1000);
+            }
       }
-
-    } catch (error) {
-      console.error('TTS Error:', error);
-      //@ts-ignore
-      this.emit('error', { sessionId, error: error.toString() });
-    }
+    });
+    audioBuffer = Buffer.from(wavHeader); // Reset buffer after writing
   }
+};
 
-  private playAudio(filename: string, sessionId: string) {
-    // Auto-play on Windows
-    const player = spawn('start', ['', filename], { 
-      shell: true, 
-      detached: true, 
-      stdio: 'ignore' 
+
+} catch (err) {
+   console.error('TTS Error:', err);
+      this.emit('error', {
+        sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+}
+
+
+}
+
+
+
+
+private playAudio(filePath: string, sessionId: string, audioUrl: string) {
+  console.log(filePath, sessionId, audioUrl);
+    const player = spawn('start', ['', filePath], {
+      shell: true,
+      detached: true,
+      stdio: 'ignore',
     });
 
     player.on('close', (code) => {
-      console.log(`Audio player closed with code: ${code}`);
-      this.emit('audioFinished', { 
-        sessionId, 
-        filename, 
-        audioUrl: `/audio/${path.basename(filename)}`,
-        code 
-      });
+      this.emit('audioFinished', { sessionId, audioUrl, code });
     });
 
     player.on('error', (err) => {
       console.error('Audio player error:', err);
       this.emit('error', { sessionId, error: `Audio player error: ${err}` });
-      
-      // Fallback: emit audioFinished anyway
-      setTimeout(() => {
-        this.emit('audioFinished', { sessionId, filename });
-      }, 2000);
     });
   }
 
-  private async streamToBuffer(stream: any): Promise<Buffer> {
-    const reader = stream.getReader();
-    const chunks: Uint8Array[] = [];
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-    
-    const data = Uint8Array.from(chunks.flat());
-    return Buffer.from(data.buffer);
-  }
 
-  // NEW: Estimate audio duration based on buffer size
+
   private estimateAudioDuration(bufferSize: number): number {
-    // Rough estimation for 44.1kHz 16-bit mono WAV
-    // Adjust based on actual audio format
-    const sampleRate = 44100;
-    const bytesPerSample = 2;
+    const sampleRate = 24000;
+    const bytesPerSample = 2; // 16-bit PCM
     const channels = 1;
     return bufferSize / (sampleRate * bytesPerSample * channels);
   }
 
-  // NEW: Get current session
+
   getCurrentSessionId(): string | null {
     return this.currentSessionId;
   }
 
-  // NEW: Stop current audio playback
   stop() {
     this.currentSessionId = null;
-    // Add logic to stop current audio if needed
   }
 }
+
+
+
+
+
+

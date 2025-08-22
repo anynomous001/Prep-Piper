@@ -1,6 +1,4 @@
-import type { WebSocketMessage } from "./types"
 import { io, Socket } from "socket.io-client";
-
 
 export class WebSocketManager {
   private socket: Socket;
@@ -8,7 +6,10 @@ export class WebSocketManager {
 
   constructor(private url: string) {
     // Initialize Socket.IO client but do not auto-connect
-    this.socket = io(this.url, { autoConnect: false });
+    this.socket = io(this.url, { 
+      autoConnect: false,
+      transports: ['websocket', 'polling']
+    });
   }
 
   connect(): Promise<void> {
@@ -25,7 +26,6 @@ export class WebSocketManager {
       });
 
       // Handle connection errors
-      //@ts-ignore
       this.socket.once("connect_error", (err) => {
         console.error("Socket.IO connection error:", err);
         reject(err);
@@ -34,15 +34,6 @@ export class WebSocketManager {
       // Open the connection
       this.socket.open();
     });
-  }
-
-  private handleMessage(message: WebSocketMessage) {
-    const handler = this.messageHandlers.get(message.type);
-    if (handler) {
-      handler(message.data);
-    } else {
-      console.warn("No handler for message type:", message.type);
-    }
   }
 
   on(messageType: string, handler: (data: any) => void) {
@@ -59,9 +50,9 @@ export class WebSocketManager {
     this.socket.off(messageType);
   }
 
-  send(message: Partial<WebSocketMessage>) {
+  send(message: { type: string; data: any }) {
     if (this.socket.connected) {
-      this.socket.emit(message.type!, message.data);
+      this.socket.emit(message.type, message.data);
     } else {
       console.error("Socket.IO is not connected");
     }

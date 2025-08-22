@@ -7,13 +7,15 @@ import { Badge } from "@/components/ui/badge"
 import { Brain, Volume2 } from "lucide-react"
 
 interface InterviewQuestionProps {
-  question: string
+  question: any
   questionNumber: number
   totalQuestions: number
 }
 
 export function InterviewQuestion({ question, questionNumber, totalQuestions }: InterviewQuestionProps) {
   const [isVisible, setIsVisible] = useState(false)
+
+  console.log(question, questionNumber, totalQuestions)
 
   useEffect(() => {
     setIsVisible(false)

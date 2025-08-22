@@ -5,7 +5,6 @@ import { InterviewAgent } from '../services/interview/interviewAgent';
 const router = express.Router();
 const interviewAgent = new InterviewAgent();
 
-// Session management
 router.post('/sessions', async (req, res) => {
   try {
     const { userId } = req.body;

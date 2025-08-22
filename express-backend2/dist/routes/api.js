@@ -8,7 +8,6 @@ const uuid_1 = require("uuid");
 const interviewAgent_1 = require("../services/interview/interviewAgent");
 const router = express_1.default.Router();
 const interviewAgent = new interviewAgent_1.InterviewAgent();
-// Session management
 router.post('/sessions', async (req, res) => {
     try {
         const { userId } = req.body;

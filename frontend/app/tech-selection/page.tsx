@@ -32,11 +32,9 @@ export default function TechSelectionPage() {
     }
   }, [])
 
-  const { connect, sendMessage } = useInterviewWebSocket({
+  const { connect, sendMessage,isConnected } = useInterviewWebSocket({
     sessionId: tempSessionId, // Use generated sessionId
-    onStartInterview: (data) => {
-      console.log("Interview started:", data)
-    },
+    
     onInterviewStarted: (data) => {
       console.log("Interview confirmed started:", data)
     },
@@ -74,9 +72,16 @@ export default function TechSelectionPage() {
       }
       localStorage.setItem('interviewPreferences', JSON.stringify(interviewPreferences))
       
-      // 2. Connect to WebSocket
-      await connect()
-      console.log("WebSocket connected ✅")
+     // 2. Connect to WebSocket and WAIT for it
+    console.log('🔌 Connecting to WebSocket...')
+    await connect()
+    
+    // 3. Check if actually connected
+    // if (!isConnected) {
+    //   throw new Error('Failed to establish WebSocket connection')
+    // }
+    
+    console.log("✅ WebSocket connected successfully")
 
       // 3. Send startInterview message
       const payload = {
@@ -84,7 +89,7 @@ export default function TechSelectionPage() {
         position: selectedRole, // Use position instead of role
         difficulty: selectedDifficulty
       }
-      sendMessage("startInterview", payload)
+      sendMessage("interviewStarted", payload)
       console.log("startInterview sent:", payload)
 
       // 4. Redirect to interview page

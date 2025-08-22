@@ -13,7 +13,6 @@ import type {
 
 interface UseInterviewWebSocketProps {
   sessionId: string | null
-  onStartInterview?: (data: StartInterviewData) => void
   onInterviewStarted?: (data: any) => void
   onSttConnected?: (data: { sessionId: string }) => void
   onInterimTranscript?: (data: InterimTranscriptData) => void
@@ -26,7 +25,6 @@ interface UseInterviewWebSocketProps {
 
 export function useInterviewWebSocket({
   sessionId,
-  onStartInterview,
   onInterviewStarted,
   onInterimTranscript,
   onSttConnected,
@@ -44,20 +42,20 @@ export function useInterviewWebSocket({
     
     if (isConnectedRef.current) {
       console.log('Already connected')
-      return
+      return Promise.resolve()
     }
 
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+      console.log('🌐 Connecting to:', wsUrl)
+
     wsRef.current = new WebSocketManager(wsUrl)
 
     try {
       await wsRef.current.connect()
       isConnectedRef.current = true
+    console.log('✅ WebSocket connection established')
 
-      // Set up event handlers
-      if (onStartInterview) {
-        wsRef.current.on("startInterview", onStartInterview)
-      }
+
       if (onInterviewStarted) {
         wsRef.current.on("interviewStarted", onInterviewStarted)
       }
@@ -91,7 +89,6 @@ export function useInterviewWebSocket({
     }
   }, [
     sessionId,
-    onStartInterview,
     onInterviewStarted,
     onInterimTranscript,
     onSttConnected,
@@ -112,11 +109,24 @@ export function useInterviewWebSocket({
 
   const sendMessage = useCallback(
     (type: string, data: any) => {
-      if (wsRef.current?.isConnected) {
-        wsRef.current.send({ type, data })
-      } else {
-        console.error("WebSocket is not connected")
-      }
+          console.log(`📤 Attempting to send message: ${type}`, data)
+       
+    if (!wsRef.current) {
+      console.error("❌ WebSocket manager not initialized")
+      return
+    }
+
+     if (!wsRef.current.isConnected) {
+      console.error("❌ WebSocket is not connected")
+      return
+    }
+    
+     try {
+      wsRef.current.send({ type, data })
+      console.log(`✅ Message sent successfully: ${type}`)
+    } catch (error) {
+      console.error(`❌ Error sending message ${type}:`, error)
+    }
     },
     []
   )

@@ -37,118 +37,147 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TTSService = void 0;
-// enhanced-ttsService.ts
-const events_1 = require("events");
+const fs_1 = __importDefault(require("fs"));
 const sdk_1 = require("@deepgram/sdk");
-const child_process_1 = require("child_process");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const events_1 = require("events");
+const path = __importStar(require("path"));
+const child_process_1 = require("child_process");
 dotenv_1.default.config();
+// Add a wav audio container header to the file if you want to play the audio
+// using the AudioContext or media player like VLC, Media Player, or Apple Music
+// Without this header in the Chrome browser case, the audio will not play.
+// prettier-ignore
+const wavHeader = [
+    0x52, 0x49, 0x46, 0x46, // "RIFF"
+    0x00, 0x00, 0x00, 0x00, // Placeholder for file size
+    0x57, 0x41, 0x56, 0x45, // "WAVE"
+    0x66, 0x6D, 0x74, 0x20, // "fmt "
+    0x10, 0x00, 0x00, 0x00, // Chunk size (16)
+    0x01, 0x00, // Audio format (1 for PCM)
+    0x01, 0x00, // Number of channels (1)
+    0x80, 0xBB, 0x00, 0x00, // Sample rate (48000)
+    0x00, 0xEE, 0x02, 0x00, // Byte rate (48000 * 2)
+    0x02, 0x00, // Block align (2)
+    0x10, 0x00, // Bits per sample (16)
+    0x64, 0x61, 0x74, 0x61, // "data"
+    0x00, 0x00, 0x00, 0x00 // Placeholder for data size
+];
 class TTSService extends events_1.EventEmitter {
-    deepgram;
+    deepgram = (0, sdk_1.createClient)(process.env.DEEPGRAM_API_KEY);
     outputDir;
     currentSessionId = null;
     constructor() {
         super();
-        this.deepgram = (0, sdk_1.createClient)(process.env.DEEPGRAM_API_KEY);
         this.outputDir = path.join(process.cwd(), 'audio_output');
-        if (!fs.existsSync(this.outputDir)) {
-            fs.mkdirSync(this.outputDir, { recursive: true });
+        if (!fs_1.default.existsSync(this.outputDir)) {
+            fs_1.default.mkdirSync(this.outputDir, { recursive: true });
         }
     }
-    async speak(text, sessionId) {
+    speak = async (text, sessionId) => {
         this.emit('status', { sessionId, message: 'Starting TTS' });
         this.currentSessionId = sessionId;
         try {
-            const response = await this.deepgram.speak.request({ text }, { model: 'aura-2-thalia-en', encoding: 'linear16', container: 'wav' });
-            const stream = await response.getStream();
-            if (!stream) {
-                throw new Error('No audio stream');
-            }
-            const buffer = await this.streamToBuffer(stream);
-            const timestamp = Date.now();
-            const filename = path.join(this.outputDir, `speech_${sessionId}_${Date.now()}.wav`);
-            fs.writeFileSync(filename, buffer);
-            const audioUrl = `/audio/speech_${sessionId}_${timestamp}.wav`;
+            const deepgram = (0, sdk_1.createClient)(process.env.DEEPGRAM_API_KEY);
+            const dgConnection = deepgram.speak.live({
+                model: "aura-2-thalia-en",
+                encoding: "linear16",
+                sample_rate: 48000,
+            });
+            let audioBuffer = Buffer.from(wavHeader);
+            dgConnection.on(sdk_1.LiveTTSEvents.Open, () => {
+                console.log("Connection opened");
+                dgConnection.sendText(text);
+                dgConnection.flush();
+                dgConnection.on(sdk_1.LiveTTSEvents.Close, () => {
+                    console.log("Connection closed");
+                });
+                dgConnection.on(sdk_1.LiveTTSEvents.Metadata, (data) => {
+                    console.dir(data, { depth: null });
+                });
+                dgConnection.on(sdk_1.LiveTTSEvents.Audio, (data) => {
+                    console.log("Deepgram audio data received");
+                    // Concatenate the audio chunks into a single buffer
+                    const buffer = Buffer.from(data);
+                    audioBuffer = Buffer.concat([audioBuffer, buffer]);
+                });
+                dgConnection.on(sdk_1.LiveTTSEvents.Flushed, () => {
+                    console.log("Deepgram Flushed");
+                    // Write the buffered audio data to a file when the flush event is received
+                    writeFile();
+                });
+                dgConnection.on(sdk_1.LiveTTSEvents.Error, (err) => {
+                    console.error(err);
+                });
+            });
+            const filename = `speech_${sessionId}_${Date.now()}.wav`;
+            const filePath = path.join(this.outputDir, filename);
+            const writeFile = () => {
+                if (audioBuffer.length > 0) {
+                    fs_1.default.writeFile(filePath, audioBuffer, (err) => {
+                        if (err) {
+                            console.error("Error writing audio file:", err);
+                        }
+                        else {
+                            console.log(`Audio file saved as ${filename}`);
+                        }
+                    });
+                    audioBuffer = Buffer.from(wavHeader); // Reset buffer after writing
+                }
+            };
+            const audioUrl = `/audio/${filename}`;
             this.emit('audioGenerated', {
                 sessionId,
-                filename,
-                timestamp: new Date(),
                 audioUrl,
-                text
+                text,
+                timestamp: new Date(),
             });
             if (process.platform === 'win32') {
-                this.playAudio(filename, sessionId);
+                this.playAudio(filePath, sessionId, audioUrl);
             }
             else {
-                // For other platforms, just emit audioFinished after a delay
+                // Otherwise, just notify frontend when finished
                 setTimeout(() => {
-                    this.emit('audioFinished', { sessionId, filename, audioUrl });
-                }, this.estimateAudioDuration(buffer.length) * 1000);
+                    this.emit('audioFinished', { sessionId, audioUrl });
+                }, this.estimateAudioDuration(audioBuffer.length) * 1000);
             }
         }
-        catch (error) {
-            console.error('TTS Error:', error);
-            //@ts-ignore
-            this.emit('error', { sessionId, error: error.toString() });
+        catch (err) {
+            console.error('TTS Error:', err);
+            this.emit('error', {
+                sessionId,
+                error: err instanceof Error ? err.message : String(err),
+            });
         }
-    }
-    playAudio(filename, sessionId) {
-        // Auto-play on Windows
-        const player = (0, child_process_1.spawn)('start', ['', filename], {
+    };
+    playAudio(filePath, sessionId, audioUrl) {
+        const player = (0, child_process_1.spawn)('start', ['', filePath], {
             shell: true,
             detached: true,
-            stdio: 'ignore'
+            stdio: 'ignore',
         });
         player.on('close', (code) => {
-            console.log(`Audio player closed with code: ${code}`);
-            this.emit('audioFinished', {
-                sessionId,
-                filename,
-                audioUrl: `/audio/${path.basename(filename)}`,
-                code
-            });
+            this.emit('audioFinished', { sessionId, audioUrl, code });
         });
         player.on('error', (err) => {
             console.error('Audio player error:', err);
             this.emit('error', { sessionId, error: `Audio player error: ${err}` });
-            // Fallback: emit audioFinished anyway
-            setTimeout(() => {
-                this.emit('audioFinished', { sessionId, filename });
-            }, 2000);
         });
     }
-    async streamToBuffer(stream) {
-        const reader = stream.getReader();
-        const chunks = [];
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done)
-                break;
-            chunks.push(value);
-        }
-        const data = Uint8Array.from(chunks.flat());
-        return Buffer.from(data.buffer);
-    }
-    // NEW: Estimate audio duration based on buffer size
     estimateAudioDuration(bufferSize) {
-        // Rough estimation for 44.1kHz 16-bit mono WAV
-        // Adjust based on actual audio format
-        const sampleRate = 44100;
-        const bytesPerSample = 2;
+        const sampleRate = 24000;
+        const bytesPerSample = 2; // 16-bit PCM
         const channels = 1;
         return bufferSize / (sampleRate * bytesPerSample * channels);
     }
-    // NEW: Get current session
     getCurrentSessionId() {
         return this.currentSessionId;
     }
-    // NEW: Stop current audio playback
     stop() {
         this.currentSessionId = null;
-        // Add logic to stop current audio if needed
+        // add stop logic if you implement streaming playback
     }
 }
 exports.TTSService = TTSService;
+// live("Hello, how can I help you today? This is a test of the Deepgram TTS service.", "session-1");
 //# sourceMappingURL=ttsService.js.map

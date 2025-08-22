@@ -34,12 +34,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InterviewAgent = void 0;
-/**
- * A simplified and robust technical interview agent with enhanced error handling.
- * Converted from Python to TypeScript
- *
-
- */
 const events_1 = require("events");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
@@ -70,7 +64,12 @@ class InterviewAgent extends events_1.EventEmitter {
     llm;
     constructor() {
         super();
+        console.log("🔄 Initializing InterviewAgent...");
         try {
+            // Load environment variables
+            if (!loadEnvironment()) {
+                throw new Error("Failed to load environment variables");
+            }
             this.llm = new groq_1.ChatGroq({
                 model: "moonshotai/kimi-k2-instruct",
                 temperature: 0.3,
@@ -79,7 +78,7 @@ class InterviewAgent extends events_1.EventEmitter {
             console.log("✓ LLM initialized successfully");
         }
         catch (error) {
-            console.log(`❌ Error initializing LLM: ${error}`);
+            console.error("❌ Error initializing InterviewAgent:", error);
             throw error;
         }
     }
@@ -88,19 +87,22 @@ class InterviewAgent extends events_1.EventEmitter {
      */
     startInterview(techStack = "Python, JavaScript, React", position = "Software Developer") {
         try {
+            console.log('Starting interview with:', { techStack, position });
+            // Ensure techStack is a string
+            const techStackStr = typeof techStack === 'string' ? techStack : String(techStack);
             const sessionId = (0, uuid_1.v4)().substring(0, 8);
             this.sessions[sessionId] = {
-                tech_stack: techStack,
+                tech_stack: techStackStr,
                 position: position,
                 question_count: 0,
                 difficulty: 'beginner',
                 conversation_history: [],
                 is_complete: false
             };
-            const firstTech = techStack.split(',')[0]?.trim() || techStack;
+            const firstTech = techStackStr.split(',')[0]?.trim() || techStackStr;
             const initialMessage = `Hello! I'm Prep Piper, your AI interviewer for today's ${position} interview.
 
-I see your tech stack includes: ${techStack}
+I see your tech stack includes: ${techStackStr}
 
 Let's start with something fundamental. Can you explain what ${firstTech} is and describe one project where you've used it effectively?`;
             this.sessions[sessionId].conversation_history.push({
@@ -112,7 +114,7 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
             return [sessionId, initialMessage];
         }
         catch (error) {
-            console.log(`❌ Error starting interview: ${error}`);
+            console.error(`❌ Error starting interview: ${error}`);
             return [null, `Error: ${error}`];
         }
     }
@@ -128,7 +130,13 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
             const session = this.sessions[sessionId];
             if (session?.is_complete) {
                 const completionMessage = this.generateCompletionMessage(sessionId);
-                this.emit('interviewComplete', { sessionId, message: completionMessage });
+                this.emit('interviewComplete', {
+                    sessionId,
+                    message: completionMessage,
+                    totalQuestions: session.question_count,
+                    techStack: session.tech_stack,
+                    position: session.position
+                });
                 return completionMessage;
             }
             // Validate answer
@@ -149,7 +157,6 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
             if (session?.question_count >= this.maxQuestions) {
                 session.is_complete = true;
                 const completionMessage = this.generateCompletionMessage(sessionId);
-                // 👈 Emit completion event
                 this.emit('interviewComplete', {
                     sessionId,
                     message: completionMessage,
@@ -175,7 +182,7 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
             return nextQuestion;
         }
         catch (error) {
-            console.log(`❌ Error processing answer: ${error}`);
+            console.error(`❌ Error processing answer: ${error}`);
             const errorMessage = `Error processing your answer: ${error}`;
             this.emit('error', { sessionId, error: errorMessage });
             return errorMessage;
@@ -204,7 +211,7 @@ INTERVIEW CONTEXT:
 RECENT CONVERSATION:
 ${recentConversation}
 
-Your role as an interviewer:  
+Your role as an interviewer: 
 1. Ask ONE question at a time and wait for candidates response
 2. Start with Basics and gradually increase difficulty
 3. Ask follow-up questions based on candidates previous response
@@ -228,7 +235,7 @@ GUIDELINES:
 - Always reference their previous response to show you're listening
 
 Current interview session: Focus on ${session.tech_stack} technologies
-Interview Style: Professional, empathetic, encouraging and thorough  
+Interview Style: Professional, empathetic, encouraging and thorough 
 
 Remember: You are evaluating technical competency, problem solving skills and in depth understanding of chosen tech stack.
 
@@ -243,12 +250,11 @@ Generate only the next question, nothing else.`;
                 content = response.content;
             }
             else if (Array.isArray(response.content)) {
-                // Extract text from MessageContentComplex array
                 content = response.content
-                    //ts-ignore
                     .map(item => {
                     if (typeof item === 'string')
                         return item;
+                    //@ts-ignore
                     if ('text' in item)
                         return item.text;
                     return '';
@@ -262,7 +268,7 @@ Generate only the next question, nothing else.`;
             return content || "Could you tell me more about your experience with the technologies we discussed?";
         }
         catch (error) {
-            console.log(`❌ Error generating question: ${error}`);
+            console.error(`❌ Error generating question: ${error}`);
             return "I'm having trouble generating the next question. Could you tell me more about your experience with the technologies we discussed?";
         }
     }
@@ -293,7 +299,7 @@ Type 'summary' for detailed conversation history.`;
 
 🆔 Session ID: ${sessionId}
 📋 Position: ${session.position}
-🛠️  Tech Stack: ${session.tech_stack}
+🛠️ Tech Stack: ${session.tech_stack}
 ❓ Questions: ${session.question_count}/${this.maxQuestions}
 📈 Difficulty: ${session.difficulty.charAt(0).toUpperCase() + session.difficulty.slice(1)}
 ✅ Status: ${session.is_complete ? 'Complete' : 'In Progress'}
@@ -323,140 +329,9 @@ Type 'summary' for detailed conversation history.`;
             console.log(`✅ Session saved to ${filename}`);
         }
         catch (error) {
-            console.log(`❌ Save error: ${error}`);
+            console.error(`❌ Save error: ${error}`);
         }
     }
 }
 exports.InterviewAgent = InterviewAgent;
-// /**
-//  * Create readline interface for user input
-//  */
-// function createReadlineInterface(): readline.Interface {
-//   return readline.createInterface({
-//     input: process.stdin,
-//     output: process.stdout
-//   });
-// }
-// /**
-//  * Async wrapper for readline question
-//  */
-// function askQuestion(rl: readline.Interface, question: string): Promise<string> {
-//   return new Promise((resolve) => {
-//     rl.question(question, (answer) => {
-//       resolve(answer);
-//     });
-//   });
-// }
-// /**
-//  * Main function with comprehensive error handling
-//  */
-// async function main(): Promise<void> {
-//   try {
-//     console.log("🚀 Starting Prep Piper Interview Agent...");
-//     console.log("=".repeat(60));
-//     // Load environment
-//     console.log("\n🔧 Loading environment...");
-//     if (!loadEnvironment()) {
-//       console.log("\n❌ Please check your .env file and try again.");
-//       return;
-//     }
-//     // Initialize interviewer
-//     console.log("\n🤖 Initializing interviewer...");
-//     const interviewer = new InterviewAgent();
-//     console.log("\n🎯 Welcome to Prep Piper - Technical Interview Simulator!");
-//     console.log("This AI conducts structured technical interviews based on your tech stack.\n");
-//     const rl = createReadlineInterface();
-//     try {
-//       // Get interview setup
-//       console.log("📝 Interview Setup:");
-//       let techStack = await askQuestion(rl, "Enter your tech stack (comma-separated, or press Enter for default): ");
-//       techStack = techStack.trim();
-//       if (!techStack) {
-//         techStack = "Python, JavaScript, React";
-//         console.log(`Using default: ${techStack}`);
-//       }
-//       let position = await askQuestion(rl, "Enter position (default: Software Developer): ");
-//       position = position.trim();
-//       if (!position) {
-//         position = "Software Developer";
-//       }
-//       // Start interview
-//       console.log("\n🎬 Starting interview...");
-//       const [sessionId, initialMessage] = interviewer.startInterview(techStack, position);
-//       if (!sessionId) {
-//         console.log(`❌ Failed to start interview: ${initialMessage}`);
-//         return;
-//       }
-//       console.log("=".repeat(80));
-//       console.log(`🎯 TECHNICAL INTERVIEW STARTED`);
-//       console.log(`📋 Position: ${position}`);
-//       console.log(`🛠️  Tech Stack: ${techStack}`);
-//       console.log(`🆔 Session ID: ${sessionId}`);
-//       console.log("=".repeat(80));
-//       console.log(`\n🎤 Interviewer: ${initialMessage}`);
-//       console.log("\n💡 Commands: 'exit', 'summary', 'save'");
-//       console.log("-".repeat(80));
-//       // Main interview loop
-//       while (true) {
-//         console.log("\n" + "-".repeat(50));
-//         const userInput = await askQuestion(rl, "\n👤 Your Response: ");
-//         const trimmedInput = userInput.trim();
-//         if (trimmedInput.toLowerCase() === 'exit') {
-//           console.log("\n🏁 Interview Ended");
-//           console.log(interviewer.getSummary(sessionId));
-//           console.log("\nThank you for using Prep Piper!");
-//           break;
-//         }
-//         if (trimmedInput.toLowerCase() === 'summary') {
-//           console.log(interviewer.getSummary(sessionId));
-//           continue;
-//         }
-//         if (trimmedInput.toLowerCase() === 'save') {
-//           await interviewer.saveSession(sessionId);
-//           continue;
-//         }
-//         if (!trimmedInput) {
-//           console.log("💭 Please provide an answer, or use 'exit', 'summary', or 'save' commands.");
-//           continue;
-//         }
-//         // Process the answer and get next question
-//         console.log("🔄 Processing your answer...");
-//         const response = await interviewer.processAnswer(sessionId, trimmedInput);
-//         console.log(`\n🎤 Interviewer: ${response}`);
-//       }
-//     } finally {
-//       rl.close();
-//     }
-//   } catch (error) {
-//     if (error instanceof Error && error.message === 'SIGINT') {
-//       console.log("\n\n⏸️  Interview interrupted by user");
-//     } else {
-//       console.log(`\n🚨 Critical error: ${error}`);
-//       console.log(`Error type: ${error instanceof Error ? error.constructor.name : typeof error}`);
-//       if (error instanceof Error) {
-//         console.log(error.stack);
-//       }
-//     }
-//   }
-// }
-// // Handle SIGINT (Ctrl+C)
-// process.on('SIGINT', () => {
-//   console.log('\n\n⏸️  Interview interrupted by user');
-//   process.exit(0);
-// });
-// // Main execution
-// if (require.main === module) {
-//   // Add debug info
-//   console.log("🟢 Node.js version:", process.version);
-//   console.log("📂 Current directory:", process.cwd());
-//   console.log("📄 Script file:", __filename);
-//   console.log();
-//   main().catch((error) => {
-//     console.log(`\n💥 Fatal error in main(): ${error}`);
-//     if (error instanceof Error) {
-//       console.log(error.stack);
-//     }
-//     process.exit(1);
-//   });
-// }
 //# sourceMappingURL=interviewAgent.js.map
