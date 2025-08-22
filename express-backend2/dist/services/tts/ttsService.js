@@ -112,6 +112,7 @@ class TTSService extends events_1.EventEmitter {
             });
             const filename = `speech_${sessionId}_${Date.now()}.wav`;
             const filePath = path.join(this.outputDir, filename);
+            const audioUrl = `/audio/${filename}`;
             const writeFile = () => {
                 if (audioBuffer.length > 0) {
                     fs_1.default.writeFile(filePath, audioBuffer, (err) => {
@@ -120,27 +121,27 @@ class TTSService extends events_1.EventEmitter {
                         }
                         else {
                             console.log(`Audio file saved as ${filename}`);
+                            // ✅ Emit audioGenerated after successful write
+                            this.emit('audioGenerated', {
+                                sessionId,
+                                audioUrl,
+                                text,
+                                timestamp: new Date(),
+                            });
+                            // ✅ Now play audio AFTER file exists
+                            if (process.platform === 'win32') {
+                                this.playAudio(filePath, sessionId, audioUrl);
+                            }
+                            else {
+                                setTimeout(() => {
+                                    this.emit('audioFinished', { sessionId, audioUrl });
+                                }, this.estimateAudioDuration(audioBuffer.length) * 1000);
+                            }
                         }
                     });
                     audioBuffer = Buffer.from(wavHeader); // Reset buffer after writing
                 }
             };
-            const audioUrl = `/audio/${filename}`;
-            this.emit('audioGenerated', {
-                sessionId,
-                audioUrl,
-                text,
-                timestamp: new Date(),
-            });
-            if (process.platform === 'win32') {
-                this.playAudio(filePath, sessionId, audioUrl);
-            }
-            else {
-                // Otherwise, just notify frontend when finished
-                setTimeout(() => {
-                    this.emit('audioFinished', { sessionId, audioUrl });
-                }, this.estimateAudioDuration(audioBuffer.length) * 1000);
-            }
         }
         catch (err) {
             console.error('TTS Error:', err);
@@ -151,6 +152,7 @@ class TTSService extends events_1.EventEmitter {
         }
     };
     playAudio(filePath, sessionId, audioUrl) {
+        console.log(filePath, sessionId, audioUrl);
         const player = (0, child_process_1.spawn)('start', ['', filePath], {
             shell: true,
             detached: true,
@@ -175,9 +177,7 @@ class TTSService extends events_1.EventEmitter {
     }
     stop() {
         this.currentSessionId = null;
-        // add stop logic if you implement streaming playback
     }
 }
 exports.TTSService = TTSService;
-// live("Hello, how can I help you today? This is a test of the Deepgram TTS service.", "session-1");
 //# sourceMappingURL=ttsService.js.map

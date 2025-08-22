@@ -45,25 +45,6 @@ export function useInterview() {
       setInterviewState("active")
     },
 
-    // onStartInterview: ({ sessionId, question }) => {
-    //   // Build session object
-    //   const newSession: InterviewSession = {
-    //     id: sessionId,
-    //     userId: "user-123",
-    //     status: "active",
-    //     currentQuestionIndex: 0,
-    //     totalQuestions: 5,
-    //     startedAt: new Date(),
-    //     progress: 20,
-    //   }
-    //   setSession(newSession)
-    //   setCurrentQuestion(question)
-    //   setInterviewState("active")
-    //   setProgress(20)
-    //   initializeSpeechRecognition()
-    //   initializeMediaRecorder()
-    // },
-
     onInterviewStarted: ({ sessionId, question }) => {
       console.log("Interview started123456789:", { sessionId, question });
       // Handle backend's interviewStarted event
@@ -93,6 +74,7 @@ export function useInterview() {
       setInterviewState("processing")
     },
     onAudioGenerated: (data) => {
+      console.log("Audio generated:", data.audioUrl)
       setAudioUrl(data.audioUrl)
       setInterviewState("waiting_for_next")
     },
@@ -219,7 +201,7 @@ export function useInterview() {
       setError(null)
       setInterviewState("active")
       await connect()
-      sendMessage("interviewStarted", { techStack, position })
+      sendMessage("startInterview", { techStack, position })
     },
     [connect, sendMessage]
   )

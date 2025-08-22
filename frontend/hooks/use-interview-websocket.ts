@@ -3,7 +3,6 @@
 import { useEffect, useRef, useCallback } from "react"
 import { WebSocketManager } from "@/lib/websocket"
 import type {
-  StartInterviewData,
   InterimTranscriptData,
   TranscriptData,
   AudioGeneratedData,
@@ -54,7 +53,6 @@ export function useInterviewWebSocket({
       await wsRef.current.connect()
       isConnectedRef.current = true
     console.log('✅ WebSocket connection established')
-
 
       if (onInterviewStarted) {
         wsRef.current.on("interviewStarted", onInterviewStarted)

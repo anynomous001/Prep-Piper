@@ -69,7 +69,8 @@ export default function InterviewPage() {
   }, [])
 
  const handlePlay = () => {
-    if (audioUrl?.endsWith(".l16")) {
+  console.log(audioUrl)
+    if (audioUrl?.endsWith(".wav")) {
       playRawPCM(audioUrl)
     } else {
       playAudio()

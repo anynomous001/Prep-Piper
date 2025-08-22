@@ -67,7 +67,7 @@ export class VoiceInterviewServer {
       console.log('Client connected:', socket.id);
 
       // Frontend starts interview
-      socket.on('interviewStarted', async ({ techStack, position }) => {
+      socket.on('startInterview', async ({ techStack, position }) => {
         try {
           console.log('Starting interview with:', { techStack, position });
           

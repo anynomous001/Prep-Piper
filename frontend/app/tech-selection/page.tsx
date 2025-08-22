@@ -89,7 +89,7 @@ export default function TechSelectionPage() {
         position: selectedRole, // Use position instead of role
         difficulty: selectedDifficulty
       }
-      sendMessage("interviewStarted", payload)
+      sendMessage("startInterview", payload)
       console.log("startInterview sent:", payload)
 
       // 4. Redirect to interview page
