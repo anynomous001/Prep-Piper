@@ -3,6 +3,8 @@ export declare class VoiceInterviewServer {
     private server;
     private io;
     private sttService;
+    private ttsService;
+    private agent;
     private activeSessions;
     private socketToSession;
     constructor();
@@ -10,10 +12,9 @@ export declare class VoiceInterviewServer {
     private setupMiddleware;
     private setupRoutes;
     private setupSocketHandlers;
-    private setupSTTHandlers;
+    private setupServiceEvents;
     private generateInterviewQuestion;
     private generateTTSAudio;
-    private createMockAudioFile;
     private processTranscriptAndRespond;
     private cleanupSession;
     start(port: number): void;

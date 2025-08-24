@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { useInterviewWebSocket } from "./use-interview-websocket"
+import { io, Socket } from "socket.io-client"
 import type {
   InterviewSession,
   InterviewQuestion,
@@ -16,6 +16,90 @@ export type InterviewState =
   | "waiting_for_next"
   | "completed"
 
+// Singleton WebSocket connection to prevent React Strict Mode issues
+class SingletonSocket {
+  private static instance: Socket | null = null
+  private static connecting = false
+
+  static async getInstance(): Promise<Socket> {
+    if (SingletonSocket.instance?.connected) {
+      return SingletonSocket.instance
+    }
+
+    if (SingletonSocket.connecting) {
+      // Wait for the current connection attempt
+      return new Promise((resolve) => {
+        const checkConnection = () => {
+          if (SingletonSocket.instance?.connected) {
+            resolve(SingletonSocket.instance)
+          } else if (!SingletonSocket.connecting) {
+            // Connection failed, try again
+            SingletonSocket.getInstance().then(resolve)
+          } else {
+            setTimeout(checkConnection, 100)
+          }
+        }
+        checkConnection()
+      })
+    }
+
+    SingletonSocket.connecting = true
+
+    try {
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+      
+      if (SingletonSocket.instance) {
+        SingletonSocket.instance.removeAllListeners()
+        SingletonSocket.instance.disconnect()
+      }
+
+      SingletonSocket.instance = io(wsUrl, {
+        transports: ['websocket'],
+        timeout: 10000,
+        autoConnect: false,
+        forceNew: true,
+      })
+
+      return new Promise((resolve, reject) => {
+        const socket = SingletonSocket.instance!
+
+        const connectTimeout = setTimeout(() => {
+          SingletonSocket.connecting = false
+          reject(new Error('Connection timeout'))
+        }, 10000)
+
+        socket.on('connect', () => {
+          clearTimeout(connectTimeout)
+          SingletonSocket.connecting = false
+          console.log('✅ Singleton socket connected')
+          resolve(socket)
+        })
+
+        socket.on('connect_error', (error) => {
+          clearTimeout(connectTimeout)
+          SingletonSocket.connecting = false
+          console.error('❌ Singleton socket connection error:', error)
+          reject(error)
+        })
+
+        socket.connect()
+      })
+    } catch (error) {
+      SingletonSocket.connecting = false
+      throw error
+    }
+  }
+
+  static disconnect(): void {
+    if (SingletonSocket.instance) {
+      SingletonSocket.instance.removeAllListeners()
+      SingletonSocket.instance.disconnect()
+      SingletonSocket.instance = null
+    }
+    SingletonSocket.connecting = false
+  }
+}
+
 export function useInterview() {
   const [session, setSession] = useState<InterviewSession | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<InterviewQuestion | null>(null)
@@ -28,26 +112,93 @@ export function useInterview() {
   const [progress, setProgress] = useState(0)
   const [responses, setResponses] = useState<InterviewResponse[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<any>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const socketRef = useRef<Socket | null>(null)
+  const eventHandlersSetup = useRef(false)
+  const isRecordingRef = useRef(false) // Track recording state to prevent double starts
 
-  const {
-    connect,
-    isConnected,
-    sendMessage,
-  } = useInterviewWebSocket({
+  const cleanup = useCallback(() => {
+    console.log('🧹 Cleaning up media resources...')
     
-    onSttConnected: ({ sessionId }) => {
-      console.log("STT is now connected for", sessionId)
-      // We don't set the state here anymore, wait for onInterviewStarted
-    },
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+        recognitionRef.current = null
+      } catch (e) {
+        console.log('Speech recognition already stopped')
+      }
+    }
+    
+    // Stop media recorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop()
+      } catch (e) {
+        console.log('Media recorder already stopped')
+      }
+    }
+    
+    // Stop media stream tracks
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => {
+        track.stop()
+        console.log('🎤 Media track stopped:', track.kind)
+      })
+      mediaStreamRef.current = null
+    }
+    
+    // Stop audio playback
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    
+    setIsRecording(false)
+    setIsPlaying(false)
+    isRecordingRef.current = false
+  }, [])
 
-    onInterviewStarted: ({ sessionId, question }) => {
-      console.log("Interview started:", { sessionId, question });
-      // Handle backend's interviewStarted event
+  const setupEventHandlers = useCallback((socket: Socket) => {
+    if (eventHandlersSetup.current) {
+      return
+    }
+
+    console.log('🔧 Setting up interview event handlers')
+
+    // Connection events
+    socket.on('connect', () => {
+      console.log('✅ Interview socket connected')
+      setIsConnected(true)
+    })
+
+    socket.on('disconnect', () => {
+      console.log('🔌 Interview socket disconnected')
+      setIsConnected(false)
+      eventHandlersSetup.current = false
+    })
+
+    socket.on('connect_error', (error) => {
+      console.error('❌ Interview socket connection error:', error)
+      setError(`Connection error: ${error.message}`)
+      setIsConnected(false)
+    })
+
+    // STT events
+    socket.on('sttConnected', ({ sessionId }) => {
+      console.log("🎤 STT connected for session:", sessionId)
+    })
+
+    // Interview events
+    socket.on('interviewStarted', ({ sessionId, question }) => {
+      console.log("🎯 Interview started:", { sessionId, question })
+      
       const newSession: InterviewSession = {
         id: sessionId,
         userId: "user-123",
@@ -57,233 +208,371 @@ export function useInterview() {
         startedAt: new Date(),
         progress: 20,
       }
+      
       setSession(newSession)
-      if (question && typeof question === 'object') {
-        console.log("Setting current question:", question);
+      
+      if (question?.questionText) {
         setCurrentQuestion({
-          questionText: question.questionText || '',
-          questionNumber: question.questionNumber || 1,
-          totalQuestions: question.totalQuestions || 5
+          id: `q-${sessionId}-1`,
+          sessionId,
+          questionIndex: 1,
+          questionText: question.questionText,
+          generatedAt: new Date(),
         })
       }
+      
       setProgress(20)
       setInterviewState("active")
-      initializeSpeechRecognition()
-      initializeMediaRecorder()
-    },
+    })
 
-    onInterimTranscript: (data) => {
+    socket.on('interimTranscript', (data) => {
       setInterimTranscript(data.text)
-    },
-    onTranscript: (data) => {
+    })
+
+    socket.on('transcript', (data) => {
+      console.log("📝 Final transcript received:", data.text)
       setTranscript((prev) => [...prev, data.text])
       setInterimTranscript("")
       setInterviewState("processing")
-    },
-    onAudioGenerated: (data) => {
-      console.log("Audio generated:", data.audioUrl, data)
+    })
+
+    socket.on('audioGenerated', (data) => {
+      console.log("🔊 Audio generated:", data)
       setAudioUrl(data.audioUrl)
       setInterviewState("waiting_for_next")
       setIsPlaying(false)
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
+      
+      // Auto-play the generated audio
+      if (data.audioUrl) {
+        setTimeout(() => {
+          playAudio(data.audioUrl)
+        }, 500)
       }
-    },
-    onInterviewComplete: (data) => {
+    })
+
+    socket.on('interviewComplete', (data) => {
+      console.log("🏁 Interview completed:", data)
       setInterviewState("completed")
       setProgress(100)
       if (data.responses) {
         setResponses(data.responses)
       }
       cleanup()
-    },
-    onError: (err) => {
-      setError(err)
-      console.error("WebSocket error:", err)
-    },
-  })
+    })
 
-  // Auto-start interview from preferences
+    socket.on('error', (err) => {
+      console.error("❌ Interview error:", err)
+      setError(err)
+    })
+
+    eventHandlersSetup.current = true
+  }, [cleanup])
+
+  // Auto-start interview from preferences - Only run once
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
     const preferences = localStorage.getItem('interviewPreferences')
     if (preferences && interviewState === 'idle') {
-      const { sessionId, techStack, position } = JSON.parse(preferences)
-      console.log("Auto-starting interview with preferences:", { sessionId, techStack, position })
+      const { techStack, position } = JSON.parse(preferences)
+      console.log("🚀 Auto-starting interview with preferences:", { techStack, position })
       
       startInterview(techStack, position)
       localStorage.removeItem('interviewPreferences')
     }
-  }, [interviewState])
+  }, []) // Empty dependency array - only run on mount
+
+  const connectSocket = useCallback(async (): Promise<Socket> => {
+    if (socketRef.current?.connected) {
+      return socketRef.current
+    }
+
+    try {
+      const socket = await SingletonSocket.getInstance()
+      socketRef.current = socket
+      setupEventHandlers(socket)
+      return socket
+    } catch (error) {
+      console.error('Failed to connect socket:', error)
+      throw error
+    }
+  }, [setupEventHandlers])
 
   const initializeSpeechRecognition = useCallback(() => {
     if (typeof window !== "undefined" && "webkitSpeechRecognition" in window) {
-      const recognition = new (window as any).webkitSpeechRecognition()
-      recognition.continuous = true
-      recognition.interimResults = true
-      recognition.lang = "en-US"
+      try {
+        const recognition = new (window as any).webkitSpeechRecognition()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = "en-US"
+        recognition.maxAlternatives = 1
 
-      recognition.onresult = (event: any) => {
-        let interim = ""
-        let final = ""
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const t = event.results[i][0].transcript
-          if (event.results[i].isFinal) {
-            final += t
-          } else {
-            interim += t
+        recognition.onstart = () => {
+          console.log('🎤 Speech recognition started')
+          setError(null)
+        }
+
+        recognition.onresult = (event: any) => {
+          let interim = ""
+          let final = ""
+          
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript
+            if (event.results[i].isFinal) {
+              final += transcript
+            } else {
+              interim += transcript
+            }
+          }
+          
+          if (interim && socketRef.current?.connected) {
+            setInterimTranscript(interim)
+          }
+          
+          if (final && socketRef.current?.connected) {
+            console.log("📝 Sending final transcript:", final)
+            socketRef.current.emit("transcript", {
+              sessionId: session?.id,
+              text: final,
+              confidence: event.results[event.results.length - 1][0].confidence,
+            })
           }
         }
-        if (interim && session?.id) {
-          sendMessage("interimTranscript", {
-            text: interim,
-            confidence: event.results[event.results.length - 1][0].confidence,
-          })
+
+        recognition.onerror = (e: any) => {
+          console.error("Speech recognition error:", e.error)
+          if (e.error !== 'no-speech') {
+            setError(`Speech recognition error: ${e.error}`)
+          }
+          setIsRecording(false)
+          isRecordingRef.current = false
         }
-        if (final && session?.id) {
-          sendMessage("transcript", {
-            text: final,
-            confidence: event.results[event.results.length - 1][0].confidence,
-          })
+
+        recognition.onend = () => {
+          console.log('🎤 Speech recognition ended')
+          setIsRecording(false)
+          isRecordingRef.current = false
         }
-      }
 
-      recognition.onerror = (e: any) => {
-        console.error("Speech recognition error:", e.error)
-        setIsRecording(false)
-        setError(`Speech recognition error: ${e.error}`)
+        recognitionRef.current = recognition
+        console.log('✅ Speech recognition initialized')
+      } catch (error) {
+        console.error('Failed to initialize speech recognition:', error)
+        setError('Speech recognition not supported')
       }
-
-      recognition.onend = () => {
-        setIsRecording(false)
-      }
-
-      recognitionRef.current = recognition
+    } else {
+      setError('Speech recognition not supported in this browser')
     }
-  }, [session?.id, sendMessage])
+  }, [session?.id])
 
   const initializeMediaRecorder = useCallback(async () => {
     try {
+      // Clean up existing media stream
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      }
+
+      console.log('🎤 Requesting microphone access...')
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       })
-      const recorder = new MediaRecorder(stream)
+
+      mediaStreamRef.current = stream
+      console.log('✅ Microphone access granted')
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+          ? 'audio/webm;codecs=opus' 
+          : 'audio/webm',
+      })
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data)
-          if (session?.id) {
+          
+          if (session?.id && socketRef.current?.connected) {
             const reader = new FileReader()
             reader.onload = () => {
-              sendMessage("audioChunk", {
-                chunk: reader.result,
-                isLast: false,
-              })
+              if (reader.result) {
+                socketRef.current?.emit("audioChunk", {
+                  sessionId: session.id,
+                  audioData: Array.from(new Uint8Array(reader.result as ArrayBuffer)),
+                })
+              }
             }
             reader.readAsArrayBuffer(e.data)
           }
         }
       }
 
+      recorder.onstart = () => {
+        console.log('🎤 Media recorder started')
+        audioChunksRef.current = []
+      }
+
       recorder.onstop = async () => {
+        console.log('🎤 Media recorder stopped')
+        
         const blob = new Blob(audioChunksRef.current, {
-          type: "audio/wav",
+          type: recorder.mimeType,
         })
         audioChunksRef.current = []
-        if (session?.id) {
-          sendMessage("audioChunk", {
-            chunk: await blob.arrayBuffer(),
-            isLast: true,
+        
+        if (session?.id && socketRef.current?.connected) {
+          const arrayBuffer = await blob.arrayBuffer()
+          socketRef.current.emit("finalizeAudio", {
+            sessionId: session.id,
+            audioData: Array.from(new Uint8Array(arrayBuffer)),
           })
         }
       }
 
+      recorder.onerror = (e) => {
+        console.error('Media recorder error:', e)
+        setError('Recording error occurred')
+        setIsRecording(false)
+        isRecordingRef.current = false
+      }
+
       mediaRecorderRef.current = recorder
+      console.log('✅ Media recorder initialized')
     } catch (e) {
-      console.error("Failed to init recorder:", e)
+      console.error("Failed to initialize media recorder:", e)
       setError("Failed to access microphone")
     }
-  }, [session?.id, sendMessage])
+  }, [session?.id])
 
-  const startInterview = useCallback(
-    async (
-      techStack = "JavaScript, React, Node.js",
-      position = "Software Developer"
-    ) => {
-      setError(null)
-      setInterviewState("connecting")
+  const startInterview = useCallback(async (
+    techStack = "JavaScript, React, Node.js",
+    position = "Software Developer"
+  ) => {
+    setError(null)
+    setInterviewState("connecting")
+    
+    try {
+      console.log("🔌 Connecting to server...")
+      const socket = await connectSocket()
       
-      let retryCount = 0;
-      const maxRetries = 3;
-      const retryDelay = 1000;
-
-      const attemptConnection = async (): Promise<void> => {
-        try {
-          await connect();
-          console.log("Connected successfully, sending startInterview message");
-          sendMessage("startInterview", { techStack, position });
-        } catch (err) {
-          console.error("Connection attempt failed:", err);
-          
-          if (retryCount < maxRetries) {
-            retryCount++;
-            console.log(`Retrying connection ${retryCount}/${maxRetries} in ${retryDelay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            return attemptConnection();
-          }
-          
-          setError("Failed to connect after multiple attempts. Please try again.");
-          setInterviewState("idle");
-          throw err;
-        }
-      };
-
-      try {
-        await attemptConnection();
-      } catch (err) {
-        console.error("All connection attempts failed:", err);
-      }
-    },
-    [connect, sendMessage]
-  )
+      console.log("📤 Sending startInterview message...")
+      socket.emit("startInterview", { techStack, position })
+      
+      // Initialize media components after connection
+      await initializeMediaRecorder()
+      initializeSpeechRecognition()
+      
+    } catch (err) {
+      console.error("❌ Failed to start interview:", err)
+      setError("Failed to connect to server. Please try again.")
+      setInterviewState("idle")
+    }
+  }, [connectSocket, initializeMediaRecorder, initializeSpeechRecognition])
 
   const startRecording = useCallback(() => {
-    if (
-      recognitionRef.current &&
-      mediaRecorderRef.current &&
-      interviewState === "active"
-    ) {
-      setIsRecording(true)
-      setInterimTranscript("")
-      setError(null)
+    if (isRecordingRef.current) {
+      console.log('⚠️ Recording already in progress')
+      return
+    }
+
+    if (!recognitionRef.current || !mediaRecorderRef.current) {
+      console.log('⚠️ Media components not initialized')
+      setError('Recording not available. Please try reloading the page.')
+      return
+    }
+
+    if (interviewState !== "active" && interviewState !== "waiting_for_next") {
+      console.log('⚠️ Cannot record in current state:', interviewState)
+      return
+    }
+
+    console.log('🎤 Starting recording...')
+    setIsRecording(true)
+    setInterimTranscript("")
+    setError(null)
+    isRecordingRef.current = true
+    
+    try {
+      // Check media recorder state
+      if (mediaRecorderRef.current.state === 'recording') {
+        console.log('⚠️ Media recorder already recording')
+        return
+      }
+
+      if (mediaRecorderRef.current.state === 'paused') {
+        mediaRecorderRef.current.resume()
+      } else {
+        mediaRecorderRef.current.start(100) // Record in 100ms chunks
+      }
+
+      // Start speech recognition
       recognitionRef.current.start()
-      mediaRecorderRef.current.start(1000)
+    } catch (e) {
+      console.error("Failed to start recording:", e)
+      setError("Failed to start recording")
+      setIsRecording(false)
+      isRecordingRef.current = false
     }
   }, [interviewState])
 
   const stopRecording = useCallback(() => {
-    if (recognitionRef.current && isRecording) {
-      recognitionRef.current.stop()
+    if (!isRecordingRef.current) {
+      console.log('⚠️ Not currently recording')
+      return
     }
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === "recording"
-    ) {
-      mediaRecorderRef.current.stop()
+
+    console.log('🛑 Stopping recording...')
+    
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch (e) {
+        console.error("Error stopping speech recognition:", e)
+      }
     }
+    
+    // Stop media recorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      try {
+        mediaRecorderRef.current.stop()
+      } catch (e) {
+        console.error("Error stopping media recorder:", e)
+      }
+    }
+    
     setIsRecording(false)
     setInterviewState("processing")
-  }, [isRecording])
+    isRecordingRef.current = false
+  }, [])
 
-  const playAudio = useCallback(() => {
-    if (audioUrl) {
+  const playAudio = useCallback((url?: string) => {
+    const audioSrc = url || audioUrl
+    if (audioSrc) {
+      console.log('🔊 Playing audio:', audioSrc)
       if (audioRef.current) {
         audioRef.current.pause()
       }
-      audioRef.current = new Audio(audioUrl)
-      audioRef.current.play()
-      setIsPlaying(true)
+      audioRef.current = new Audio(audioSrc)
+      audioRef.current.play().then(() => {
+        setIsPlaying(true)
+      }).catch((e) => {
+        console.error('Failed to play audio:', e)
+        setError('Failed to play audio')
+      })
+      
       audioRef.current.onended = () => {
+        setIsPlaying(false)
+        console.log('🔊 Audio playback completed')
+      }
+      
+      audioRef.current.onerror = (e) => {
+        console.error('Audio playback error:', e)
+        setError('Audio playback error')
         setIsPlaying(false)
       }
     }
@@ -302,24 +591,15 @@ export function useInterview() {
   }, [])
 
   const endInterview = useCallback(() => {
+    if (session?.id && socketRef.current?.connected) {
+      socketRef.current.emit("endInterview", { sessionId: session.id })
+    }
     setInterviewState("completed")
     setProgress(100)
     cleanup()
-  }, [])
+  }, [session?.id, cleanup])
 
-  const cleanup = useCallback(() => {
-    if (recognitionRef.current) recognitionRef.current.stop()
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === "recording"
-    ) {
-      mediaRecorderRef.current.stop()
-    }
-    if (audioRef.current) audioRef.current.pause()
-    setIsRecording(false)
-    setIsPlaying(false)
-  }, [])
-
+  // Cleanup on unmount
   useEffect(() => {
     return cleanup
   }, [cleanup])
