@@ -61,17 +61,17 @@ class VoiceInterviewServer {
     setupSocketHandlers() {
         this.io.on('connection', (socket) => {
             console.log('Client connected:', socket.id);
-            // Frontend starts interview
             socket.on('startInterview', async ({ techStack, position }) => {
                 try {
-                    console.log('Starting interview with:', { techStack, position });
-                    // Ensure techStack is a string
+                    console.log('Starting interview with:', { techStack, position, socketId: socket.id });
                     const techStackStr = Array.isArray(techStack) ? techStack.join(', ') : techStack;
                     const [sessionId, initialMessage] = this.agent.startInterview(techStackStr, position);
                     if (!sessionId) {
+                        console.error('Failed to get sessionId from agent');
                         socket.emit('error', { error: 'Failed to start interview' });
                         return;
                     }
+                    console.log(`Joining socket ${socket.id} to room ${sessionId}`);
                     //@ts-ignore
                     socket.join(sessionId);
                     //@ts-ignore
@@ -112,6 +112,11 @@ class VoiceInterviewServer {
             });
             return;
         }
+        console.log('🔄 Setting up service events with initialized services:', {
+            stt: !!this.stt,
+            tts: !!this.tts,
+            agent: !!this.agent
+        });
         console.log('✅ Setting up service events...');
         // STT Service Events
         this.stt.on('connected', ({ sessionId }) => {
@@ -177,8 +182,8 @@ class VoiceInterviewServer {
             console.log("Emitting interviewStarted event:", {
                 sessionId,
                 question: { questionText: initialMessage }
-            }),
-                this.tts.speak(initialMessage, sessionId);
+            });
+            this.tts.speak(initialMessage, sessionId);
         });
         const services = [this.stt, this.tts, this.agent].filter(Boolean);
         services.forEach((service) => {

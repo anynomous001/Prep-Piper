@@ -112,7 +112,7 @@ class TTSService extends events_1.EventEmitter {
             });
             const filename = `speech_${sessionId}_${Date.now()}.wav`;
             const filePath = path.join(this.outputDir, filename);
-            const audioUrl = `/audio/${filename}`;
+            const audioUrl = `http://localhost:3001/audio/${filename}`;
             const writeFile = () => {
                 if (audioBuffer.length > 0) {
                     fs_1.default.writeFile(filePath, audioBuffer, (err) => {
@@ -121,11 +121,13 @@ class TTSService extends events_1.EventEmitter {
                         }
                         else {
                             console.log(`Audio file saved as ${filename}`);
+                            console.log('Emitting audioGenerated with URL:', audioUrl);
                             // ✅ Emit audioGenerated after successful write
                             this.emit('audioGenerated', {
                                 sessionId,
                                 audioUrl,
                                 text,
+                                duration: this.estimateAudioDuration(audioBuffer.length),
                                 timestamp: new Date(),
                             });
                             // ✅ Now play audio AFTER file exists

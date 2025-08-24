@@ -4,12 +4,11 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Mic, Square } from "lucide-react"
-
 interface MicrophoneControlsProps {
   isRecording: boolean
   onStartRecording: () => void
   onStopRecording: () => void
-  interviewState: "idle" | "active" | "processing" | "waiting_for_next" | "completed"
+  interviewState: "idle" | "connecting" | "active" | "processing" | "waiting_for_next" | "completed"
 }
 
 export function MicrophoneControls({

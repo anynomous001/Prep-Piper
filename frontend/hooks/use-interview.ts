@@ -10,6 +10,7 @@ import type {
 
 export type InterviewState =
   | "idle"
+  | "connecting"
   | "active"
   | "processing"
   | "waiting_for_next"
@@ -38,15 +39,14 @@ export function useInterview() {
     isConnected,
     sendMessage,
   } = useInterviewWebSocket({
-    sessionId: session?.id || null,
     
     onSttConnected: ({ sessionId }) => {
       console.log("STT is now connected for", sessionId)
-      setInterviewState("active")
+      // We don't set the state here anymore, wait for onInterviewStarted
     },
 
     onInterviewStarted: ({ sessionId, question }) => {
-      console.log("Interview started123456789:", { sessionId, question });
+      console.log("Interview started:", { sessionId, question });
       // Handle backend's interviewStarted event
       const newSession: InterviewSession = {
         id: sessionId,
@@ -58,9 +58,16 @@ export function useInterview() {
         progress: 20,
       }
       setSession(newSession)
-      setCurrentQuestion(question)
-      setInterviewState("active")
+      if (question && typeof question === 'object') {
+        console.log("Setting current question:", question);
+        setCurrentQuestion({
+          questionText: question.questionText || '',
+          questionNumber: question.questionNumber || 1,
+          totalQuestions: question.totalQuestions || 5
+        })
+      }
       setProgress(20)
+      setInterviewState("active")
       initializeSpeechRecognition()
       initializeMediaRecorder()
     },
@@ -74,9 +81,14 @@ export function useInterview() {
       setInterviewState("processing")
     },
     onAudioGenerated: (data) => {
-      console.log("Audio generated:", data.audioUrl)
+      console.log("Audio generated:", data.audioUrl, data)
       setAudioUrl(data.audioUrl)
       setInterviewState("waiting_for_next")
+      setIsPlaying(false)
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
     },
     onInterviewComplete: (data) => {
       setInterviewState("completed")
@@ -199,9 +211,38 @@ export function useInterview() {
       position = "Software Developer"
     ) => {
       setError(null)
-      setInterviewState("active")
-      await connect()
-      sendMessage("startInterview", { techStack, position })
+      setInterviewState("connecting")
+      
+      let retryCount = 0;
+      const maxRetries = 3;
+      const retryDelay = 1000;
+
+      const attemptConnection = async (): Promise<void> => {
+        try {
+          await connect();
+          console.log("Connected successfully, sending startInterview message");
+          sendMessage("startInterview", { techStack, position });
+        } catch (err) {
+          console.error("Connection attempt failed:", err);
+          
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.log(`Retrying connection ${retryCount}/${maxRetries} in ${retryDelay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            return attemptConnection();
+          }
+          
+          setError("Failed to connect after multiple attempts. Please try again.");
+          setInterviewState("idle");
+          throw err;
+        }
+      };
+
+      try {
+        await attemptConnection();
+      } catch (err) {
+        console.error("All connection attempts failed:", err);
+      }
     },
     [connect, sendMessage]
   )

@@ -94,7 +94,7 @@ dgConnection.on(LiveTTSEvents.Open, () => {
 const filename = `speech_${sessionId}_${Date.now()}.wav`;
 const filePath = path.join(this.outputDir, filename);
 
-      const audioUrl = `/audio/${filename}`;
+      const audioUrl = `http://localhost:3001/audio/${filename}`;
 
       const writeFile = () => {
   if (audioBuffer.length > 0) {
@@ -103,11 +103,13 @@ const filePath = path.join(this.outputDir, filename);
         console.error("Error writing audio file:", err);
       } else {
         console.log(`Audio file saved as ${filename}`);
+        console.log('Emitting audioGenerated with URL:', audioUrl);
 // ✅ Emit audioGenerated after successful write
             this.emit('audioGenerated', {
               sessionId,
               audioUrl,
               text,
+              duration: this.estimateAudioDuration(audioBuffer.length),
               timestamp: new Date(),
             });
 

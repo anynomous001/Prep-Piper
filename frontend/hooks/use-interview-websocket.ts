@@ -11,7 +11,6 @@ import type {
 } from "@/lib/types"
 
 interface UseInterviewWebSocketProps {
-  sessionId: string | null
   onInterviewStarted?: (data: any) => void
   onSttConnected?: (data: { sessionId: string }) => void
   onInterimTranscript?: (data: InterimTranscriptData) => void
@@ -23,7 +22,6 @@ interface UseInterviewWebSocketProps {
 }
 
 export function useInterviewWebSocket({
-  sessionId,
   onInterviewStarted,
   onInterimTranscript,
   onSttConnected,
@@ -37,23 +35,23 @@ export function useInterviewWebSocket({
   const isConnectedRef = useRef(false)
 
   const connect = useCallback(async () => {
-    console.log('🔌 connect() called with sessionId:', sessionId)
-    
     if (isConnectedRef.current) {
       console.log('Already connected')
       return Promise.resolve()
     }
 
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
-      console.log('🌐 Connecting to:', wsUrl)
+    console.log('🌐 Attempting to connect to:', wsUrl)
+
+    if (wsRef.current) {
+      await wsRef.current.disconnect();
+      wsRef.current = null;
+    }
 
     wsRef.current = new WebSocketManager(wsUrl)
 
     try {
-      await wsRef.current.connect()
-      isConnectedRef.current = true
-    console.log('✅ WebSocket connection established')
-
+      // Set up event handlers before attempting connection
       if (onInterviewStarted) {
         wsRef.current.on("interviewStarted", onInterviewStarted)
       }
@@ -78,15 +76,33 @@ export function useInterviewWebSocket({
       if (onError) {
         wsRef.current.on("error", onError)
       }
+
+      // Add reconnection handler
+      wsRef.current.on("reconnect_attempt", (attemptNumber: number) => {
+        console.log(`Attempting to reconnect (${attemptNumber})...`)
+      })
+
+      wsRef.current.on("reconnect_failed", () => {
+        console.error("Failed to reconnect after all attempts")
+        if (onError) {
+          onError("Connection lost and failed to reconnect")
+        }
+      })
+
+      // Attempt connection with retry logic
+      await wsRef.current.connect()
+      isConnectedRef.current = true
+      console.log('✅ WebSocket connection established')
+      
     } catch (error) {
       console.error("Failed to connect to WebSocket:", error)
       isConnectedRef.current = false
       if (onError) {
         onError(error instanceof Error ? error.message : "Connection failed")
       }
+      throw error; // Propagate the error to be handled by the caller
     }
   }, [
-    sessionId,
     onInterviewStarted,
     onInterimTranscript,
     onSttConnected,
@@ -99,9 +115,14 @@ export function useInterviewWebSocket({
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.disconnect()
-      wsRef.current = null
-      isConnectedRef.current = false
+      try {
+        wsRef.current.disconnect();
+      } catch (error) {
+        console.error('Error during disconnect:', error);
+      } finally {
+        wsRef.current = null;
+        isConnectedRef.current = false;
+      }
     }
   }, [])
 
@@ -130,14 +151,13 @@ export function useInterviewWebSocket({
   )
 
   useEffect(() => {
-    if (sessionId) {
       connect()
-    }
+    
 
     return () => {
       disconnect()
     }
-  }, [sessionId, connect, disconnect])
+  }, [])
 
   return {
     isConnected: isConnectedRef.current,

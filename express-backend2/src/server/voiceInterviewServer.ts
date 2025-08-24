@@ -66,21 +66,21 @@ export class VoiceInterviewServer {
     this.io.on('connection', (socket) => {
       console.log('Client connected:', socket.id);
 
-      // Frontend starts interview
       socket.on('startInterview', async ({ techStack, position }) => {
         try {
-          console.log('Starting interview with:', { techStack, position });
+          console.log('Starting interview with:', { techStack, position, socketId: socket.id });
           
-          // Ensure techStack is a string
           const techStackStr = Array.isArray(techStack) ? techStack.join(', ') : techStack;
           
           const [sessionId, initialMessage] = this.agent.startInterview(techStackStr, position);
           
           if (!sessionId) {
+            console.error('Failed to get sessionId from agent');
             socket.emit('error', { error: 'Failed to start interview' });
             return;
           }
           
+          console.log(`Joining socket ${socket.id} to room ${sessionId}`);
           //@ts-ignore
           socket.join(sessionId);
           
@@ -128,6 +128,12 @@ export class VoiceInterviewServer {
       });
       return;
     }
+    
+    console.log('🔄 Setting up service events with initialized services:', {
+      stt: !!this.stt,
+      tts: !!this.tts,
+      agent: !!this.agent
+    });
 
     console.log('✅ Setting up service events...');
 
@@ -195,16 +201,16 @@ export class VoiceInterviewServer {
     this.agent.on('sessionStarted', ({ sessionId, initialMessage }) => {
       console.log("Agent sessionStarted:", sessionId, initialMessage);
 
-    this.io.to(sessionId).emit('interviewStarted', {
-    
-      sessionId,
-      question: { questionText: initialMessage }
-    });
-
-  console.log("Emitting interviewStarted event:", {
+      this.io.to(sessionId).emit('interviewStarted', {
         sessionId,
         question: { questionText: initialMessage }
-      }),
+      });
+
+      console.log("Emitting interviewStarted event:", {
+        sessionId,
+        question: { questionText: initialMessage }
+      });
+      
       this.tts.speak(initialMessage, sessionId);
     });
 

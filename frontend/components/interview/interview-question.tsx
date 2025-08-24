@@ -7,7 +7,11 @@ import { Badge } from "@/components/ui/badge"
 import { Brain, Volume2 } from "lucide-react"
 
 interface InterviewQuestionProps {
-  question: any
+  question: string | {
+    questionText: string;
+    questionNumber?: number;
+    totalQuestions?: number;
+  }
   questionNumber: number
   totalQuestions: number
 }
@@ -15,9 +19,14 @@ interface InterviewQuestionProps {
 export function InterviewQuestion({ question, questionNumber, totalQuestions }: InterviewQuestionProps) {
   const [isVisible, setIsVisible] = useState(false)
 
-  console.log(question, questionNumber, totalQuestions)
-
   useEffect(() => {
+    console.log('Question updated:', {
+      question,
+      type: typeof question,
+      isObject: typeof question === 'object',
+      text: typeof question === 'string' ? question : question?.questionText
+    });
+    
     setIsVisible(false)
     const timer = setTimeout(() => setIsVisible(true), 100)
     return () => clearTimeout(timer)
@@ -127,7 +136,9 @@ export function InterviewQuestion({ question, questionNumber, totalQuestions }: 
                   transition={{ delay: 0.5, duration: 0.8 }}
                   className="text-lg text-slate-800 leading-relaxed font-medium"
                 >
-                  {question || "Preparing your next question..."}
+                  {typeof question === 'string' 
+                    ? question 
+                    : question?.questionText || "Preparing your next question..."}
                 </motion.p>
               </div>
             </motion.div>

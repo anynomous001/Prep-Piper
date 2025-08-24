@@ -139,7 +139,7 @@ export default function InterviewPage() {
                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white py-4 text-lg font-semibold group transition-all duration-300 hover:scale-105"
               >
                 <Brain className="mr-2 w-5 h-5 group-hover:rotate-12 transition-transform" />
-                {isConnected ? "Start Interview" : "Connecting..."}
+                {isConnected ? (interviewState === "connecting" ? "Starting..." : "Start Interview") : "Connecting..."}
               </Button>
               <Link href="/">
                 <Button
@@ -212,7 +212,7 @@ export default function InterviewPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Current Question */}
             <InterviewQuestion
-              question={currentQuestion}
+              question={typeof currentQuestion === 'string' ? currentQuestion : currentQuestion?.questionText || ''}
               questionNumber={Math.floor(progress / 20) + 1}
               totalQuestions={5}
             />

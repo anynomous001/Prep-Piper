@@ -15,18 +15,25 @@ interface AudioControlsProps {
 export function AudioControls({ audioUrl, isPlaying, onPlay, onPause }: AudioControlsProps) {
   const [isMuted, setIsMuted] = useState(false)
 
-  // if (!audioUrl) {
-  //   return (
-  //     <Card className="shadow-lg border-0 bg-slate-50">
-  //       <CardContent className="p-6">
-  //         <div className="flex items-center justify-center space-x-3 text-slate-400">
-  //           <Volume2 className="w-6 h-6" />
-  //           <p>Audio will appear here when the AI generates a response</p>
-  //         </div>
-  //       </CardContent>
-  //     </Card>
-  //   )
-  // }
+  if (!audioUrl) {
+    return (
+      <Card className="shadow-lg border-0 bg-slate-50">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center space-x-3 text-slate-400">
+            <Volume2 className="w-6 h-6" />
+            <p>Audio will appear here when the AI generates a response</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+  
+  // Log audio URL for debugging
+  console.log('Audio URL:', {
+    url: audioUrl,
+    isValid: audioUrl?.startsWith('http'),
+    type: audioUrl?.split('.').pop()
+  });
 
   return (
     <Card className="shadow-lg border-0">
