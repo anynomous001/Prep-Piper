@@ -1,223 +1,254 @@
-// enhanced-sttService.ts
-import { EventEmitter } from 'events';
-import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
-import { spawn } from 'child_process';
-import dotenv from 'dotenv';
+import { EventEmitter } from 'events'
+import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk'
+import dotenv from 'dotenv'
 
-dotenv.config();
+dotenv.config()
+
+interface STTSession {
+  sessionId: string
+  connection: any
+  isActive: boolean
+  createdAt: Date
+  socketId: string | null
+}
 
 export class STTService extends EventEmitter {
-  private deepgram: ReturnType<typeof createClient>;
-  private connection: any = null;
-  private ffmpegProcess: any = null;
-  private isActive = false;
-  private currentSessionId: string | null = null;
-
-
+  private deepgram: ReturnType<typeof createClient>
+  private sessions: Map<string, STTSession> = new Map()
+  
   constructor() {
-    super();
-    this.deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
+    super()
+    this.deepgram = createClient(process.env.DEEPGRAM_API_KEY!)
+    console.log('✅ STTService initialized with session isolation')
   }
 
-  async startListening(sessionId: string) {
-    if (this.isActive) {
-      this.emit('error', { sessionId, error: 'STT already active' });
-      return;
+  async startSession(sessionId: string, socketId?: string): Promise<void> {
+    console.log(`🎤 Starting STT session: ${sessionId}`)
+
+    // Check if session already exists and is active
+    const existingSession = this.sessions.get(sessionId)
+    if (existingSession?.isActive) {
+      console.warn(`⚠️ STT session ${sessionId} already active, skipping`)
+      this.emit('error', { sessionId, error: 'STT session already active' })
+      return
     }
-    this.isActive = true;
-    this.currentSessionId = sessionId; // 👈 Set current session
-    this.emit('status', { sessionId, message: 'Starting STT service' });
 
-    // 1. Open Deepgram live transcription
-    this.connection = this.deepgram.listen.live({
-      model: 'nova-2',
-      language: 'en-US',
-      smart_format: true,
-      interim_results: true,
-      encoding: 'linear16',
-      sample_rate: 44100,
-      channels: 2,
-      endpointing: 300,
-      utterance_end_ms: 1500,
-    });
+    // Clean up any inactive session with the same ID
+    if (existingSession && !existingSession.isActive) {
+      await this.cleanupSession(sessionId)
+    }
 
-     this.connection.on(LiveTranscriptionEvents.Open, () => {
-      this.emit('connected', { sessionId });
-      // Only start FFmpeg capture if we're not using frontend audio chunks
-      if (!this.isFrontendAudioMode()) {
-        this.captureAudio(sessionId);
-      }
-    });
-     
+    try {
+      // Create new Deepgram live transcription connection
+      const connection = this.deepgram.listen.live({
+        model: 'nova-2',
+        language: 'en-US',
+        smart_format: true,
+        interim_results: true,
+        encoding: 'linear16',
+        sample_rate: 16000,
+        channels: 1,
+        endpointing: 300,
+        utterance_end_ms: 1500,
+      })
 
-    this.connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
-      const text = data.channel.alternatives[0].transcript;
-      this.emit('transcript', {
+      // Create session object
+      const session: STTSession = {
         sessionId,
-        text,
-        confidence: data.channel.alternatives[0].confidence,
-        isFinal: data.is_final,
-        timestamp: new Date(),
-      });
-    });
+        connection,
+        isActive: false,
+        createdAt: new Date(),
+        socketId: socketId || null,
+      }
 
-    this.connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
-      this.emit('disconnected', { sessionId, closeEvent });
-      this.cleanup();
-    });
+      // Set up connection event handlers
+      connection.on(LiveTranscriptionEvents.Open, () => {
+        console.log(`🎤 Deepgram connection opened for session: ${sessionId}`)
+        session.isActive = true
+        this.emit('connected', { sessionId })
+      })
 
-  this.connection.on(LiveTranscriptionEvents.Error, (error: any) => {
-      console.error('Deepgram STT Error:', error);
-      this.emit('error', { sessionId, error: `Deepgram STT Error: ${error}` });
-      this.cleanup();
-    });
+      connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
+        if (data.channel.alternatives[0].transcript.trim()) {
+          const transcript = {
+            sessionId,
+            text: data.channel.alternatives[0].transcript,
+            confidence: data.channel.alternatives[0].confidence,
+            isFinal: data.is_final,
+            timestamp: new Date(),
+          }
+
+          if (data.is_final) {
+            console.log(`📝 Final transcript for ${sessionId}:`, transcript.text)
+            this.emit('transcript', transcript)
+          } else {
+            this.emit('interimTranscript', transcript)
+          }
+        }
+      })
+
+      connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
+        console.log(`🎤 Deepgram connection closed for session: ${sessionId}`)
+        this.emit('disconnected', { sessionId, closeEvent })
+        this.cleanupSession(sessionId)
+      })
+
+      connection.on(LiveTranscriptionEvents.Error, (error: any) => {
+        console.error(`❌ Deepgram error for session ${sessionId}:`, error)
+        this.emit('error', { sessionId, error: error.message })
+        this.cleanupSession(sessionId)
+      })
+
+      // Store the session
+      this.sessions.set(sessionId, session)
+      console.log(`✅ STT session ${sessionId} started successfully`)
+      
+      // Emit state change event
+      this.emit('stateChange', { sessionId, state: 'ready' })
+      
+    } catch (error) {
+      console.error(`❌ Failed to start STT session ${sessionId}:`, error)
+      this.emit('error', { 
+        sessionId, 
+        error: error instanceof Error ? error.message : 'Failed to start STT session' 
+      })
+      this.emit('stateChange', { sessionId, state: 'error' })
+      this.cleanupSession(sessionId)
+    }
   }
-  // NEW: Handle audio chunks from frontend
-  processAudioChunk(sessionId: string, chunk: ArrayBuffer | Buffer) {
-    if (!this.connection || this.connection.getReadyState() !== 1) {
-      console.warn('STT connection not ready for audio chunk');
-      return;
+
+  processAudioChunk(sessionId: string, audioData: Buffer | ArrayBuffer): void {
+    const session = this.sessions.get(sessionId)
+    
+    if (!session) {
+      console.warn(`⚠️ No STT session found for: ${sessionId}`)
+      return
     }
 
+    if (!session.isActive) {
+      console.warn(`⚠️ STT session ${sessionId} is not active`)
+      return
+    }
 
-    if (!this.isActive || this.currentSessionId !== sessionId) {
-      console.warn('STT not active for this session');
-      return;
+    if (!session.connection || session.connection.getReadyState() !== 1) {
+      console.warn(`⚠️ STT connection not ready for session: ${sessionId}`)
+      return
     }
 
     try {
       // Convert ArrayBuffer to Buffer if needed
-      let buffer: Buffer;
-      if (chunk instanceof ArrayBuffer) {
-        buffer = Buffer.from(chunk);
-      } else {
-        buffer = chunk;
-      }
+      const buffer = audioData instanceof ArrayBuffer 
+        ? Buffer.from(audioData) 
+        : audioData
 
       // Send audio data to Deepgram
-      this.connection.send(buffer);
+      session.connection.send(buffer)
+      
     } catch (error) {
-      console.error('Error processing audio chunk:', error);
-      this.emit('error', { 
-        sessionId, 
-        error: `Audio chunk processing error: ${error}` 
-      });
+      console.error(`❌ Error processing audio chunk for session ${sessionId}:`, error)
+      this.emit('error', {
+        sessionId,
+        error: `Audio processing error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      })
     }
   }
 
-  // NEW: Start listening without FFmpeg (for frontend audio)
-  async startListeningForFrontendAudio(sessionId: string) {
-    console.log('Starting STT for frontend audio mode');
-    await this.startListening(sessionId);
+  finishSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId)
+    
+    if (!session) {
+      console.warn(`⚠️ No STT session to finish: ${sessionId}`)
+      return
+    }
+
+    console.log(`🛑 Finishing STT session: ${sessionId}`)
+
+    try {
+      if (session.connection && session.isActive) {
+        session.connection.finish()
+      }
+    } catch (error) {
+      console.error(`❌ Error finishing session ${sessionId}:`, error)
+    } finally {
+      this.cleanupSession(sessionId)
+    }
   }
 
-  // NEW: Finalize audio stream from frontend
-  finalizeAudioStream(sessionId: string) {
-    if (this.connection && this.currentSessionId === sessionId) {
-      // Send end-of-stream signal to Deepgram
-      try {
-        this.connection.finish();
-      } catch (error) {
-        console.error('Error finalizing audio stream:', error);
+  // Clean up session by socket ID (when client disconnects)
+  cleanupBySocketId(socketId: string): void {
+    console.log(`🧹 Cleaning up sessions for socket: ${socketId}`)
+    
+    const sessionsToCleanup: string[] = []
+    for (const [sessionId, session] of this.sessions) {
+      if (session.socketId === socketId) {
+        sessionsToCleanup.push(sessionId)
       }
     }
+
+    for (const sessionId of sessionsToCleanup) {
+      this.finishSession(sessionId)
+    }
   }
 
-
-  private captureAudio(sessionId: string) {
-    const ffmpegArgs = [
-      '-f', 'dshow',
-      '-i', 'audio=Microphone (Realtek(R) Audio)',
-      '-f', 's16le',
-      '-acodec', 'pcm_s16le',
-      '-ar', '44100',
-      '-ac', '2',
-      'pipe:1',
-    ];
-    this.ffmpegProcess = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
-
-    this.ffmpegProcess.stdout.on('data', (chunk: Buffer) => {
-      if (this.connection.getReadyState() === 1) {
-        this.connection.send(chunk);
-      }
-    });
-
-     this.ffmpegProcess.stderr.on('data', (data: Buffer) => {
-      console.log('FFmpeg stderr:', data.toString());
-    });
-
-    this.ffmpegProcess.on('close', (code: number) => {
-      console.log('FFmpeg process closed with code:', code);
-      this.emit('audioStopped', { sessionId, code });
-      this.cleanup();
-    });
-
-    this.ffmpegProcess.on('error', (error: any) => {
-      console.error('FFmpeg error:', error);
-      this.emit('error', { sessionId, error: `FFmpeg error: ${error}` });
-      this.cleanup();
-    });
-  }
-
-  stopListening() {
-    console.log('Stopping STT service');
-    this.cleanup();
-  }
-
-  // NEW: Check if we're in frontend audio mode
- private isFrontendAudioMode(): boolean {
-    // You can add logic here to determine audio source mode
-    // For now, assume frontend audio if no specific server-side config
-    return process.env.AUDIO_SOURCE !== 'server';
-  }
-
-    private cleanup() {
-    this.isActive = false;
-    this.currentSessionId = null;
-
-    if (this.ffmpegProcess) {
-      try {
-        this.ffmpegProcess.kill('SIGTERM');
-        setTimeout(() => {
-          if (this.ffmpegProcess) {
-            this.ffmpegProcess.kill('SIGKILL');
-          }
-        }, 5000);
-      } catch (error) {
-        console.error('Error killing FFmpeg process:', error);
-      }
-      this.ffmpegProcess = null;
+  private async cleanupSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId)
+    
+    if (!session) {
+      return
     }
 
-    if (this.connection) {
-      try {
-        this.connection.finish();
-      } catch (error) {
-        console.error('Error closing Deepgram connection:', error);
+    console.log(`🧹 Cleaning up STT session: ${sessionId}`)
+
+    try {
+      session.isActive = false
+
+      if (session.connection) {
+        session.connection.removeAllListeners()
+        
+        try {
+          session.connection.finish()
+        } catch (error) {
+          console.error(`❌ Error closing connection for session ${sessionId}:`, error)
+        }
       }
-      this.connection = null;
+
+      this.sessions.delete(sessionId)
+      this.emit('sessionCleaned', { sessionId })
+      
+    } catch (error) {
+      console.error(`❌ Error during cleanup for session ${sessionId}:`, error)
     }
-
-    this.emit('stopped');
   }
 
-  // NEW: Get connection status
-  isConnected(): boolean {
-    return this.connection && this.connection.getReadyState() === 1;
+  getActiveSessionsCount(): number {
+    return Array.from(this.sessions.values()).filter(session => session.isActive).length
   }
 
-  // NEW: Get active session
-  getCurrentSessionId(): string | null {
-    return this.currentSessionId;
+  getSessionInfo(sessionId: string): STTSession | null {
+    return this.sessions.get(sessionId) || null
   }
 
-  // NEW: Restart connection if needed
-  async restartConnection(sessionId: string) {
-    if (this.isActive) {
-      this.cleanup();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  isSessionActive(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId)
+    return session ? session.isActive : false
+  }
+
+  getAllActiveSessions(): string[] {
+    return Array.from(this.sessions.entries())
+      .filter(([_, session]) => session.isActive)
+      .map(([sessionId, _]) => sessionId)
+  }
+
+  async cleanup(): Promise<void> {
+    console.log('🧹 Cleaning up all STT sessions')
+    
+    const sessionIds = Array.from(this.sessions.keys())
+    
+    for (const sessionId of sessionIds) {
+      await this.cleanupSession(sessionId)
     }
-    await this.startListening(sessionId);
+    
+    this.sessions.clear()
+    console.log('✅ All STT sessions cleaned up')
   }
 }
-

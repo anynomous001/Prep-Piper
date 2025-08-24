@@ -1,15 +1,22 @@
 export declare class VoiceInterviewServer {
     private app;
-    private httpServer;
+    private server;
     private io;
-    private stt;
-    private tts;
-    private agent;
+    private sttService;
+    private activeSessions;
+    private socketToSession;
     constructor();
-    private setupRoutes;
+    private ensureAudioDirectory;
     private setupMiddleware;
+    private setupRoutes;
     private setupSocketHandlers;
-    private setupServiceEvents;
+    private setupSTTHandlers;
+    private generateInterviewQuestion;
+    private generateTTSAudio;
+    private createMockAudioFile;
+    private processTranscriptAndRespond;
+    private cleanupSession;
     start(port: number): void;
+    stop(): Promise<void>;
 }
 //# sourceMappingURL=voiceInterviewServer.d.ts.map

@@ -1,234 +1,464 @@
-import express from 'express';
-import { createServer } from 'http';
-import { Server as IOServer } from 'socket.io';
-import { STTService } from '../services/stt/sttService';
-import { TTSService } from '../services/tts/ttsService';
-import { InterviewAgent } from '../services/interview/interviewAgent';
-import cors from 'cors';
-import apiRoutes from '../routes/api';
-import path from 'path';
+import express from 'express'
+import http from 'http'
+import { Server } from 'socket.io'
+import cors from 'cors'
+import { v4 as uuidv4 } from 'uuid'
+import dotenv from 'dotenv'
+import path from 'path'
+import fs from 'fs'
+import { STTService } from '../services/stt/sttService'
+
+dotenv.config()
+
+interface STTEventData {
+  sessionId: string;
+  text?: string;
+  confidence?: number;
+  error?: string;
+}
+
+interface ActiveSession {
+  sessionId: string
+  socketId: string
+  createdAt: Date
+  techStack?: string
+  position?: string
+}
 
 export class VoiceInterviewServer {
-  private app = express();
-  private httpServer = createServer(this.app);
-  private io = new IOServer(this.httpServer, { 
-    cors: {  
-      origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-      methods: ["GET", "POST"] 
-    } 
-  });
-  private stt: STTService;
-  private tts: TTSService;
-  private agent: InterviewAgent;
+  private app: express.Application
+  private server: http.Server
+  private io: Server
+  private sttService: STTService
+  private activeSessions: Map<string, ActiveSession> = new Map()
+  private socketToSession: Map<string, string> = new Map() // socket.id -> sessionId
 
   constructor() {
-    try {
-      console.log('🔄 Initializing services...');
-      
-      this.stt = new STTService();
-      console.log('✅ STT Service initialized');
-      
-      this.tts = new TTSService();
-      console.log('✅ TTS Service initialized');
-      
-      this.agent = new InterviewAgent();
-      console.log('✅ Interview Agent initialized');
+    this.app = express()
+    this.server = http.createServer(this.app)
+    
+    // Initialize Socket.IO with proper CORS
+    this.io = new Server(this.server, {
+      cors: {
+        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        methods: ["GET", "POST"],
+        credentials: true
+      },
+      transports: ['websocket', 'polling'],
+      allowEIO3: true
+    })
 
-      this.setupSocketHandlers();
-      this.setupMiddleware();
-      this.setupRoutes();
-      this.setupServiceEvents();
-      
-      console.log('✅ VoiceInterviewServer initialized successfully');
-    } catch (error) {
-      console.error('❌ Error initializing VoiceInterviewServer:', error);
-      throw error;
+    // Initialize STT Service
+    this.sttService = new STTService()
+    
+    this.setupMiddleware()
+    this.setupRoutes()
+    this.setupSocketHandlers()
+    this.setupSTTHandlers()
+
+    // Ensure audio output directory exists
+    this.ensureAudioDirectory()
+
+    console.log('✅ VoiceInterviewServer initialized with session isolation')
+  }
+
+  private ensureAudioDirectory(): void {
+    const audioDir = path.join(process.cwd(), 'audio_output')
+    if (!fs.existsSync(audioDir)) {
+      fs.mkdirSync(audioDir, { recursive: true })
+      console.log('📁 Created audio_output directory')
     }
   }
 
-  private setupRoutes() {
-    this.app.use('/api', apiRoutes);
-    this.app.get('/health', (_, res) => res.json({ status: 'OK' }));
-  }
-
-  private setupMiddleware() {
+  private setupMiddleware(): void {
+    // CORS for HTTP requests
     this.app.use(cors({
-      origin: process.env.CORS_ORIGIN || "http://localhost:3000"
-    }));
-    this.app.use(express.json());
-    this.app.use(express.static('public'));
+      origin: process.env.FRONTEND_URL || "http://localhost:3000",
+      credentials: true
+    }))
     
-    // Serve audio files for frontend
-    this.app.use('/audio', express.static(path.join(process.cwd(), 'audio_output')));
+    this.app.use(express.json())
+    this.app.use(express.static('public'))
+    
+    // Serve audio files
+    this.app.use('/audio', express.static('audio_output'))
   }
 
-  private setupSocketHandlers() {
-    this.io.on('connection', (socket) => {
-      console.log('Client connected:', socket.id);
+  private setupRoutes(): void {
+    // Health check endpoint
+    this.app.get('/health', (req, res) => {
+      res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        activeSessions: this.activeSessions.size,
+        activeSTTSessions: this.sttService.getActiveSessionsCount(),
+        activeSessionDetails: Array.from(this.activeSessions.values()).map(session => ({
+          sessionId: session.sessionId,
+          socketId: session.socketId,
+          createdAt: session.createdAt,
+          sttActive: this.sttService.isSessionActive(session.sessionId)
+        }))
+      })
+    })
 
-      socket.on('startInterview', async ({ techStack, position }) => {
+    // Get session info
+    this.app.get('/session/:sessionId', (req, res) => {
+      const { sessionId } = req.params
+      const session = this.activeSessions.get(sessionId)
+      
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' })
+      }
+
+      res.json({
+        sessionId: session.sessionId,
+        socketId: session.socketId,
+        createdAt: session.createdAt,
+        sttActive: this.sttService.isSessionActive(sessionId),
+        sttInfo: this.sttService.getSessionInfo(sessionId)
+      })
+    })
+  }
+
+  private setupSocketHandlers(): void {
+    this.io.on('connection', (socket) => {
+      console.log(`🔌 Client connected: ${socket.id}`)
+
+      // Handle interview start
+      socket.on('startInterview', async (data) => {
         try {
-          console.log('Starting interview with:', { techStack, position, socketId: socket.id });
+          const sessionId = uuidv4().substring(0, 8)
           
-          const techStackStr = Array.isArray(techStack) ? techStack.join(', ') : techStack;
-          
-          const [sessionId, initialMessage] = this.agent.startInterview(techStackStr, position);
-          
-          if (!sessionId) {
-            console.error('Failed to get sessionId from agent');
-            socket.emit('error', { error: 'Failed to start interview' });
-            return;
+          console.log(`🎯 Starting interview:`, {
+            sessionId,
+            socketId: socket.id,
+            techStack: data.techStack,
+            position: data.position
+          })
+
+          // Store session info with socket mapping
+          const session: ActiveSession = {
+            sessionId,
+            socketId: socket.id,
+            createdAt: new Date(),
+            techStack: data.techStack,
+            position: data.position
           }
           
-          console.log(`Joining socket ${socket.id} to room ${sessionId}`);
-          //@ts-ignore
-          socket.join(sessionId);
-          
-          //@ts-ignore
-          await this.stt.startListeningForFrontendAudio(sessionId);
+          this.activeSessions.set(sessionId, session)
+          this.socketToSession.set(socket.id, sessionId)
 
+          // Join socket to room for this session
+          socket.join(sessionId)
+          console.log(`📍 Socket ${socket.id} joined room ${sessionId}`)
           
-          console.log('Interview started successfully:', sessionId);
+          // Start STT service for this session with socket ID for tracking
+          await this.sttService.startSession(sessionId, socket.id)
+
+          // Generate interview question
+          const question = this.generateInterviewQuestion(data.techStack, data.position)
+
+          // Emit interview started event to the specific session room
+          this.io.to(sessionId).emit('interviewStarted', {
+            sessionId,
+            question: {
+              questionText: question
+            }
+          })
+
+          console.log(`✅ Interview started successfully for session: ${sessionId}`)
+
+          // Generate TTS audio for the question
+          setTimeout(() => {
+            this.generateTTSAudio(sessionId, question)
+          }, 1000)
+
         } catch (error) {
-          console.error('Error starting interview:', error);
-          socket.emit('error', { error: error instanceof Error ? error.message : 'Unknown error' });
+          console.error(`❌ Error starting interview:`, error)
+          socket.emit('error', 'Failed to start interview')
         }
-      });
+      })
 
-      // Frontend sends interim transcript
-      socket.on('interimTranscript', (data) => {
-        socket.broadcast.to(data.sessionId).emit('interimTranscript', data);
-      });
-
-      // Frontend sends final transcript  
-      socket.on('transcript', (data) => {
-        this.agent.processAnswer(data.sessionId, data.text);
-      });
-
-      // Frontend sends audio chunks for STT processing
+      // Handle audio chunks from frontend
       socket.on('audioChunk', (data) => {
-        if (this.stt.processAudioChunk) {
-          this.stt.processAudioChunk(data.sessionId, data.chunk);
+        const { sessionId, audioData } = data
+        
+        if (!sessionId) {
+          console.error('❌ No sessionId provided with audio chunk')
+          return
         }
-      });
 
-      socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
-      });
-    });
+        const session = this.activeSessions.get(sessionId)
+        if (!session) {
+          console.error(`❌ Invalid session for audio chunk: ${sessionId}`)
+          return
+        }
+
+        // Verify this socket owns this session
+        if (session.socketId !== socket.id) {
+          console.error(`❌ Socket ${socket.id} doesn't own session ${sessionId}`)
+          return
+        }
+
+        // Process audio chunk through STT service
+        try {
+          const buffer = Buffer.from(audioData)
+          this.sttService.processAudioChunk(sessionId, buffer)
+        } catch (error) {
+          console.error(`❌ Error processing audio chunk for ${sessionId}:`, error)
+        }
+      })
+
+      // Handle finalize audio stream
+      socket.on('finalizeAudio', (data) => {
+        const { sessionId } = data
+        
+        if (sessionId && this.activeSessions.has(sessionId)) {
+          this.sttService.finishSession(sessionId)
+        }
+      })
+
+      // Handle interview end
+      socket.on('endInterview', (data) => {
+        const { sessionId } = data
+        
+        if (sessionId) {
+          this.cleanupSession(sessionId)
+          this.io.to(sessionId).emit('interviewComplete', { sessionId })
+        }
+      })
+
+      // Handle disconnect
+      socket.on('disconnect', (reason) => {
+        console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`)
+        
+        // Find and cleanup session associated with this socket
+        const sessionId = this.socketToSession.get(socket.id)
+        if (sessionId) {
+          console.log(`🧹 Cleaning up session ${sessionId} for disconnected socket ${socket.id}`)
+          this.cleanupSession(sessionId)
+        }
+        
+        // Also cleanup any STT sessions associated with this socket
+        this.sttService.cleanupBySocketId(socket.id)
+      })
+
+      // Handle errors
+      socket.on('error', (error) => {
+        console.error(`❌ Socket error for ${socket.id}:`, error)
+      })
+    })
   }
 
-  private setupServiceEvents() {
-    // Check if all services are initialized
-    if (!this.stt || !this.tts || !this.agent) {
-      console.error('❌ Services not properly initialized:', {
-        stt: !!this.stt,
-        tts: !!this.tts,
-        agent: !!this.agent
-      });
-      return;
+  private setupSTTHandlers(): void {
+    // STT connection established
+    this.sttService.on('connected', (data: STTEventData) => {
+      const { sessionId } = data
+      const session = this.activeSessions.get(sessionId)
+      
+      if (session) {
+        this.io.to(sessionId).emit('sttConnected', { sessionId })
+        console.log(`🎤 STT connected for session: ${sessionId}`)
+      }
+    })
+
+    // Interim transcript (real-time)
+    this.sttService.on('interimTranscript', (data: STTEventData) => {
+      const { sessionId, text, confidence } = data
+      const session = this.activeSessions.get(sessionId)
+      
+      if (session && text?.trim()) {
+        this.io.to(sessionId).emit('interimTranscript', {
+          sessionId,
+          text,
+          confidence,
+          timestamp: new Date()
+        })
+      }
+    })
+
+    // Final transcript
+    this.sttService.on('transcript', (data: STTEventData) => {
+      const { sessionId, text, confidence } = data
+      const session = this.activeSessions.get(sessionId)
+      
+      if (session && text?.trim()) {
+        this.io.to(sessionId).emit('transcript', {
+          sessionId,
+          text,
+          confidence,
+          isFinal: true,
+          timestamp: new Date()
+        })
+        
+        console.log(`📝 Final transcript for ${sessionId}:`, text)
+        
+        // Process the transcript and generate response
+        setTimeout(() => {
+          this.processTranscriptAndRespond(sessionId, text, session)
+        }, 1000)
+      }
+    })
+
+    // STT errors
+    this.sttService.on('error', (data: STTEventData) => {
+      const { sessionId, error } = data
+      const session = this.activeSessions.get(sessionId)
+      
+      if (session) {
+        this.io.to(sessionId).emit('sttError', { sessionId, error })
+        console.error(`❌ STT error for session ${sessionId}:`, error)
+      }
+    })
+
+    // STT disconnected
+    this.sttService.on('disconnected', (data: STTEventData) => {
+      const { sessionId } = data
+      console.log(`🎤 STT disconnected for session: ${sessionId}`)
+    })
+  }
+
+  private generateInterviewQuestion(techStack: string, position: string): string {
+    const questions = [
+      `Hello! I'm Prep Piper, your AI interviewer for today's ${position} interview.\n\nI see your tech stack includes: ${techStack}\n\nLet's start with something fundamental. Can you explain what ${techStack} is and describe one project where you've used it effectively?`,
+      `Great! Now, can you walk me through a challenging problem you solved using ${techStack}?`,
+      `Tell me about a time when you had to optimize performance in a ${techStack} application.`,
+      `How do you approach testing in ${techStack} projects?`,
+      `What's one thing you'd like to improve about your ${techStack} skills?`
+    ]
+    
+    return questions[0] ?? "Could not generate a question."
+  }
+
+  private async generateTTSAudio(sessionId: string, text: string): Promise<void> {
+    try {
+      console.log(`🔊 Generating TTS audio for session: ${sessionId}`)
+      
+      // Mock TTS generation - replace with actual TTS service
+      // For now, create a mock audio URL
+      const timestamp = Date.now()
+      const filename = `speech_${sessionId}_${timestamp}.wav`
+      const audioPath = path.join(process.cwd(), 'audio_output', filename)
+      
+      // Create a mock empty audio file (replace with actual TTS)
+      this.createMockAudioFile(audioPath)
+      
+      const audioUrl = `http://localhost:${process.env.PORT || 3001}/audio/${filename}`
+      
+      console.log(`🔊 TTS audio generated: ${audioUrl}`)
+      
+      // Emit audio generated event
+      this.io.to(sessionId).emit('audioGenerated', {
+        sessionId,
+        audioUrl,
+        text: text.substring(0, 100) + '...',
+        duration: 3.5
+      })
+      
+    } catch (error) {
+      console.error(`❌ Error generating TTS for session ${sessionId}:`, error)
+      this.io.to(sessionId).emit('error', 'Failed to generate audio')
+    }
+  }
+
+  private createMockAudioFile(filePath: string): void {
+    // Create a minimal WAV file header for a 1-second silent audio
+    const sampleRate = 16000
+    const numChannels = 1
+    const bitsPerSample = 16
+    const duration = 1 // 1 second
+    const numSamples = sampleRate * duration
+    const dataSize = numSamples * numChannels * (bitsPerSample / 8)
+    const fileSize = 44 + dataSize - 8
+
+    const buffer = Buffer.alloc(44 + dataSize)
+    let offset = 0
+
+    // WAV header
+    buffer.write('RIFF', offset); offset += 4
+    buffer.writeUInt32LE(fileSize, offset); offset += 4
+    buffer.write('WAVE', offset); offset += 4
+    buffer.write('fmt ', offset); offset += 4
+    buffer.writeUInt32LE(16, offset); offset += 4 // PCM format chunk size
+    buffer.writeUInt16LE(1, offset); offset += 2  // PCM format
+    buffer.writeUInt16LE(numChannels, offset); offset += 2
+    buffer.writeUInt32LE(sampleRate, offset); offset += 4
+    buffer.writeUInt32LE(sampleRate * numChannels * (bitsPerSample / 8), offset); offset += 4
+    buffer.writeUInt16LE(numChannels * (bitsPerSample / 8), offset); offset += 2
+    buffer.writeUInt16LE(bitsPerSample, offset); offset += 2
+    buffer.write('data', offset); offset += 4
+    buffer.writeUInt32LE(dataSize, offset); offset += 4
+
+    // Silent audio data (zeros)
+    buffer.fill(0, offset)
+
+    fs.writeFileSync(filePath, buffer)
+    console.log(`📁 Mock audio file created: ${filePath}`)
+  }
+
+  private processTranscriptAndRespond(sessionId: string, transcript: string, session: ActiveSession): void {
+    console.log(`🤖 Processing transcript for ${sessionId}: ${transcript}`)
+    
+    // Mock AI response generation - replace with actual AI service
+    const responses = [
+      "Thank you for sharing that. That's a great example of using " + session.techStack + ". Can you tell me more about the challenges you faced during implementation?",
+      "Interesting approach! How did you handle error handling and edge cases in that project?",
+      "That sounds like solid experience. What would you do differently if you were to rebuild that project today?",
+      "Excellent! Can you walk me through your debugging process when you encountered issues?",
+      "Great response! Let's move on to the next question."
+    ]
+    
+    const response = responses[Math.floor(Math.random() * responses.length)] ?? "Thank you for your response. Let's continue."
+    
+    // Generate TTS for the response
+    setTimeout(() => {
+      this.generateTTSAudio(sessionId, response)
+    }, 2000)
+  }
+
+  private cleanupSession(sessionId: string): void {
+    console.log(`🧹 Cleaning up session: ${sessionId}`)
+    
+    const session = this.activeSessions.get(sessionId)
+    if (session) {
+      // Remove socket mapping
+      this.socketToSession.delete(session.socketId)
     }
     
-    console.log('🔄 Setting up service events with initialized services:', {
-      stt: !!this.stt,
-      tts: !!this.tts,
-      agent: !!this.agent
-    });
-
-    console.log('✅ Setting up service events...');
-
-    // STT Service Events
-    this.stt.on('connected', ({ sessionId }) => {
-      this.io.to(sessionId).emit('sttConnected', { sessionId });
-    });
-
-    this.stt.on('audioStopped', ({ sessionId }) => {
-      this.io.to(sessionId).emit('sttStopped', { sessionId });
-    });
-
-    this.stt.on('transcript', ({ sessionId, text, isFinal }) => {
-      if (isFinal) {
-        this.agent.processAnswer(sessionId, text);
-        this.io.to(sessionId).emit('transcript', { sessionId, text });
-      } else {
-        this.io.to(sessionId).emit('interimTranscript', { sessionId, text });
-      }
-    });
-
-    // TTS Service Events
-    this.tts.on('audioGenerated', ({ sessionId, audioUrl, text, duration }) => {
-      this.io.to(sessionId).emit('audioGenerated', { 
-        sessionId, 
-        audioUrl,
-        text,
-        duration
-      });
-    });
-
-    this.tts.on('audioFinished', ({ sessionId }) => {
-      this.stt.startListening(sessionId);
-      this.io.to(sessionId).emit('audioFinished', { sessionId });
-    });
-
-    this.agent.on('nextQuestion', ({ sessionId, question, questionNumber, totalQuestions }) => {
-      this.stt.stopListening();
-      this.tts.speak(question, sessionId);
-      this.io.to(sessionId).emit('nextQuestion', { 
-        sessionId, 
-        question: { 
-          questionText: question,
-          questionNumber,
-          totalQuestions
-        }
-      });
-    });
-
-    this.agent.on('interviewComplete', ({ sessionId, message, totalQuestions, techStack, position }) => {
-      this.stt.stopListening();
-      this.tts.speak(message, sessionId);
-      this.io.to(sessionId).emit('interviewComplete', { 
-        sessionId, 
-        message,
-        summary: {
-          totalQuestions,
-          techStack,
-          position,
-          completedAt: new Date()
-        }
-      });
-    });
-
-    this.agent.on('sessionStarted', ({ sessionId, initialMessage }) => {
-      console.log("Agent sessionStarted:", sessionId, initialMessage);
-
-      this.io.to(sessionId).emit('interviewStarted', {
-        sessionId,
-        question: { questionText: initialMessage }
-      });
-
-      console.log("Emitting interviewStarted event:", {
-        sessionId,
-        question: { questionText: initialMessage }
-      });
-      
-      this.tts.speak(initialMessage, sessionId);
-    });
-
-    const services = [this.stt, this.tts, this.agent].filter(Boolean);
+    // Remove from active sessions
+    this.activeSessions.delete(sessionId)
     
-    services.forEach((service) => {
-      service.on('error', ({ sessionId, error }) => {
-        console.error(`Service error for session ${sessionId}:`, error);
-        this.io.to(sessionId).emit('error', { sessionId, error: error.toString() });
-      });
-    });
-
-    console.log('✅ Service events setup complete');
+    // Cleanup STT session
+    this.sttService.finishSession(sessionId)
+    
+    // Remove all sockets from the room
+    this.io.socketsLeave(sessionId)
   }
 
-  start(port: number) {
-    this.httpServer.listen(port, () => {
-      console.log(`🚀 Server listening on http://localhost:${port}`);
-    });
+  start(port: number): void {
+    this.server.listen(port, () => {
+      console.log(`🚀 Server listening on http://localhost:${port}`)
+      console.log(`🎤 STT Service ready with session isolation`)
+      console.log(`🔊 TTS Service ready (mock implementation)`)
+      console.log(`🔌 WebSocket server ready`)
+      console.log(`📊 Active sessions: ${this.activeSessions.size}`)
+    })
+  }
+
+  async stop(): Promise<void> {
+    console.log('🛑 Shutting down server...')
+    
+    // Cleanup all sessions
+    for (const sessionId of this.activeSessions.keys()) {
+      this.cleanupSession(sessionId)
+    }
+    
+    // Cleanup STT service
+    await this.sttService.cleanup()
+    
+    // Close server
+    this.server.close(() => {
+      console.log('✅ Server stopped')
+    })
   }
 }
