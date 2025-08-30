@@ -65,42 +65,62 @@ export function MicrophoneControls({
       </CardHeader>
       <CardContent>
         <div className="text-center space-y-4">
-          <div className="relative flex justify-center">
-            <motion.div
-              variants={micButtonVariants}
-              animate={isRecording ? "recording" : canRecord ? "idle" : "disabled"}
-              whileHover={canRecord ? { scale: 1.05 } : {}}
-              whileTap={canRecord ? { scale: 0.95 } : {}}
-            >
-              <Button
-                onClick={isRecording ? onStopRecording : onStartRecording}
-                disabled={!canRecord}
-                size="lg"
-                className={`w-20 h-20 rounded-full transition-all duration-300 ${
-                  isRecording
-                    ? "bg-red-600 hover:bg-red-700"
-                    : canRecord
+          <div className="relative flex flex-col items-center space-y-4">
+            {!isRecording ? (
+              <motion.div
+                variants={micButtonVariants}
+                animate={canRecord ? "idle" : "disabled"}
+                whileHover={canRecord ? { scale: 1.05 } : {}}
+                whileTap={canRecord ? { scale: 0.95 } : {}}
+              >
+                <Button
+                  onClick={onStartRecording}
+                  disabled={!canRecord}
+                  size="lg"
+                  className={`w-20 h-20 rounded-full transition-all duration-300 ${
+                    canRecord
                       ? "bg-blue-600 hover:bg-blue-700"
                       : "bg-slate-300 cursor-not-allowed"
-                } text-white relative overflow-hidden`}
+                  } text-white relative overflow-hidden`}
+                >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key="mic"
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      exit={{ scale: 0, rotate: 180 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Mic className="w-8 h-8" />
+                    </motion.div>
+                  </AnimatePresence>
+                </Button>
+              </motion.div>
+            ) : (
+              <motion.div
+                variants={micButtonVariants}
+                animate="recording"
+                className="relative"
               >
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={isRecording ? "stop" : "mic"}
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    exit={{ scale: 0, rotate: 180 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {isRecording ? <Square className="w-8 h-8" /> : <Mic className="w-8 h-8" />}
-                  </motion.div>
-                </AnimatePresence>
-              </Button>
-            </motion.div>
+                <Button
+                  onClick={onStopRecording}
+                  size="lg"
+                  className="w-20 h-20 rounded-full transition-all duration-300 bg-red-600 hover:bg-red-700 text-white relative overflow-hidden"
+                >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key="stop"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Square className="w-8 h-8" />
+                    </motion.div>
+                  </AnimatePresence>
+                </Button>
 
-            <AnimatePresence>
-              {isRecording && (
-                <>
+                <AnimatePresence>
                   {[...Array(3)].map((_, i) => (
                     <motion.div
                       key={i}
@@ -110,9 +130,27 @@ export function MicrophoneControls({
                       style={{ animationDelay: `${i * 0.5}s` }}
                     />
                   ))}
-                </>
-              )}
-            </AnimatePresence>
+                </AnimatePresence>
+              </motion.div>
+            )}
+            
+            {isRecording && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-center gap-2"
+              >
+                <span className="text-red-600 font-semibold">Recording in progress</span>
+                <Button
+                  onClick={onStopRecording}
+                  variant="outline"
+                  size="sm"
+                  className="border-red-300 text-red-600 hover:bg-red-50"
+                >
+                  Stop & Send
+                </Button>
+              </motion.div>
+            )}
           </div>
 
           <motion.div

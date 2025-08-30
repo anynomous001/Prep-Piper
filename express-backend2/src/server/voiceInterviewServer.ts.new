@@ -210,48 +210,12 @@ export class VoiceInterviewServer {
         }
       });
 
-      socket.on('validateSession', (data, callback) => {
-        const { sessionId } = data;
-        const session = this.activeSessions.get(sessionId);
-        callback({ valid: !!session && session.socketId === socket.id });
-      });
-
-      socket.on('reestablishSession', (data) => {
-        const { sessionId, techStack, position } = data;
-        const existingSession = this.activeSessions.get(sessionId);
-        
-        if (existingSession) {
-          // Update socket mapping
-          existingSession.socketId = socket.id;
-          this.socketToSession.set(socket.id, sessionId);
-          socket.join(sessionId);
-          
-          console.log(`🔄 Reestablished session ${sessionId} for socket ${socket.id}`);
-          
-          // Notify client
-          socket.emit('sessionReestablished', {
-            sessionId,
-            status: 'active'
-          });
-        }
-      });
-
       socket.on('disconnect', (reason) => {
         console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`);
         const sessionId = this.socketToSession.get(socket.id);
-        
-        // Don't cleanup session immediately on disconnect
-        // Give time for potential reconnection
         if (sessionId) {
-          setTimeout(() => {
-            const session = this.activeSessions.get(sessionId);
-            // Only cleanup if socket hasn't reconnected
-            if (session && session.socketId === socket.id) {
-              this.cleanupSession(sessionId);
-            }
-          }, 5000); // 5 second grace period for reconnection
+          this.cleanupSession(sessionId);
         }
-        
         this.sttService.cleanupBySocketId(socket.id);
       });
 
@@ -345,11 +309,7 @@ export class VoiceInterviewServer {
   }
 
   private generateInterviewQuestion(techStack: string, position: string): string {
-    const greeting = `Hello! I'm Prep Piper, your AI interviewer for today's ${position}. 
-    I hope that you are doing well and are ready for this
-    interview focusing on ${techStack}. First tell about your experience with ${techStack} and if you 
-    have any projects or work samples to share.
-    `;
+    const greeting = `Hello! I'm Prep Piper, your AI interviewer for today's ${position} interview focusing on ${techStack}.`;
     this.agent.startInterview(techStack, position);
     return greeting;
   }

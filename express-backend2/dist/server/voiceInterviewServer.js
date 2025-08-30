@@ -170,11 +170,40 @@ class VoiceInterviewServer {
                     this.io.to(sessionId).emit('interviewComplete', { sessionId });
                 }
             });
+            socket.on('validateSession', (data, callback) => {
+                const { sessionId } = data;
+                const session = this.activeSessions.get(sessionId);
+                callback({ valid: !!session && session.socketId === socket.id });
+            });
+            socket.on('reestablishSession', (data) => {
+                const { sessionId, techStack, position } = data;
+                const existingSession = this.activeSessions.get(sessionId);
+                if (existingSession) {
+                    // Update socket mapping
+                    existingSession.socketId = socket.id;
+                    this.socketToSession.set(socket.id, sessionId);
+                    socket.join(sessionId);
+                    console.log(`🔄 Reestablished session ${sessionId} for socket ${socket.id}`);
+                    // Notify client
+                    socket.emit('sessionReestablished', {
+                        sessionId,
+                        status: 'active'
+                    });
+                }
+            });
             socket.on('disconnect', (reason) => {
                 console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`);
                 const sessionId = this.socketToSession.get(socket.id);
+                // Don't cleanup session immediately on disconnect
+                // Give time for potential reconnection
                 if (sessionId) {
-                    this.cleanupSession(sessionId);
+                    setTimeout(() => {
+                        const session = this.activeSessions.get(sessionId);
+                        // Only cleanup if socket hasn't reconnected
+                        if (session && session.socketId === socket.id) {
+                            this.cleanupSession(sessionId);
+                        }
+                    }, 5000); // 5 second grace period for reconnection
                 }
                 this.sttService.cleanupBySocketId(socket.id);
             });
