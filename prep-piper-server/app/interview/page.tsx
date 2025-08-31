@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import type { TechSelection } from "@/lib/types"
-import { useInterview } from "@/hooks/useInterview"
+import useInterview  from "@/hooks/useInterview"
 import { ArrowLeft, RotateCcw } from "lucide-react"
 
 export default function InterviewPage() {
