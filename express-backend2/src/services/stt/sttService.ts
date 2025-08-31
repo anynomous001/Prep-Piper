@@ -10,26 +10,46 @@ interface STTSession {
   isActive: boolean
   createdAt: Date
   socketId: string | null
+  lastActivityAt: Date
 }
 
 export class STTService extends EventEmitter {
   private deepgram: ReturnType<typeof createClient>
   private sessions: Map<string, STTSession> = new Map()
-  
+  private cleanupInterval: NodeJS.Timeout
+
   constructor() {
     super()
     this.deepgram = createClient(process.env.DEEPGRAM_API_KEY!)
     console.log('✅ STTService initialized with session isolation')
+    
+    // Setup cleanup interval to remove stale sessions
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupStaleSessions()
+    }, 30000) // Check every 30 seconds
+  }
+
+  private cleanupStaleSessions(): void {
+    const now = new Date()
+    const staleThreshold = 5 * 60 * 1000 // 5 minutes
+
+    for (const [sessionId, session] of this.sessions) {
+      if (now.getTime() - session.lastActivityAt.getTime() > staleThreshold) {
+        console.log(`🧹 Cleaning up stale session: ${sessionId}`)
+        this.cleanupSession(sessionId)
+      }
+    }
   }
 
   async startSession(sessionId: string, socketId?: string): Promise<void> {
     console.log(`🎤 Starting STT session: ${sessionId}`)
-
+    
     // Check if session already exists and is active
     const existingSession = this.sessions.get(sessionId)
     if (existingSession?.isActive) {
-      console.warn(`⚠️ STT session ${sessionId} already active, skipping`)
-      this.emit('error', { sessionId, error: 'STT session already active' })
+      console.warn(`⚠️ STT session ${sessionId} already active, updating activity time`)
+      existingSession.lastActivityAt = new Date()
+      this.emit('connected', { sessionId })
       return
     }
 
@@ -49,7 +69,11 @@ export class STTService extends EventEmitter {
         sample_rate: 16000,
         channels: 1,
         endpointing: 300,
-        utterance_end_ms: 1500,
+        utterance_end_ms: 2000, // Increased to 2 seconds
+        vad_events: true, // Enable voice activity detection
+        punctuate: true,
+        profanity_filter: false,
+        redact: false,
       })
 
       // Create session object
@@ -59,17 +83,21 @@ export class STTService extends EventEmitter {
         isActive: false,
         createdAt: new Date(),
         socketId: socketId || null,
+        lastActivityAt: new Date(),
       }
 
       // Set up connection event handlers
       connection.on(LiveTranscriptionEvents.Open, () => {
         console.log(`🎤 Deepgram connection opened for session: ${sessionId}`)
         session.isActive = true
+        session.lastActivityAt = new Date()
         this.emit('connected', { sessionId })
       })
 
       connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
-        if (data.channel.alternatives[0].transcript.trim()) {
+        session.lastActivityAt = new Date()
+        
+        if (data.channel?.alternatives?.[0]?.transcript?.trim()) {
           const transcript = {
             sessionId,
             text: data.channel.alternatives[0].transcript,
@@ -81,22 +109,29 @@ export class STTService extends EventEmitter {
           if (data.is_final) {
             console.log(`📝 Final transcript for ${sessionId}:`, transcript.text)
             this.emit('transcript', transcript)
+            console.log(`✅ [STTService] final transcript: "${transcript.text}" for ${sessionId}`);
           } else {
             this.emit('interimTranscript', transcript)
           }
         }
       })
 
+      connection.on(LiveTranscriptionEvents.UtteranceEnd, (data: any) => {
+        console.log(`🎤 Utterance ended for session ${sessionId}`)
+        session.lastActivityAt = new Date()
+        // Don't auto-cleanup on utterance end, let the client decide
+      })
+
       connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
-        console.log(`🎤 Deepgram connection closed for session: ${sessionId}`)
+        console.log(`🎤 Deepgram connection closed for session: ${sessionId}`, closeEvent)
         this.emit('disconnected', { sessionId, closeEvent })
-        this.cleanupSession(sessionId)
+        // session.isActive = false
       })
 
       connection.on(LiveTranscriptionEvents.Error, (error: any) => {
         console.error(`❌ Deepgram error for session ${sessionId}:`, error)
         this.emit('error', { sessionId, error: error.message })
-        this.cleanupSession(sessionId)
+        session.isActive = false
       })
 
       // Store the session
@@ -105,12 +140,11 @@ export class STTService extends EventEmitter {
       
       // Emit state change event
       this.emit('stateChange', { sessionId, state: 'ready' })
-      
     } catch (error) {
       console.error(`❌ Failed to start STT session ${sessionId}:`, error)
-      this.emit('error', { 
-        sessionId, 
-        error: error instanceof Error ? error.message : 'Failed to start STT session' 
+      this.emit('error', {
+        sessionId,
+        error: error instanceof Error ? error.message : 'Failed to start STT session'
       })
       this.emit('stateChange', { sessionId, state: 'error' })
       this.cleanupSession(sessionId)
@@ -119,7 +153,6 @@ export class STTService extends EventEmitter {
 
   processAudioChunk(sessionId: string, audioData: Buffer | ArrayBuffer): void {
     const session = this.sessions.get(sessionId)
-    
     if (!session) {
       console.warn(`⚠️ No STT session found for: ${sessionId}`)
       return
@@ -137,13 +170,15 @@ export class STTService extends EventEmitter {
 
     try {
       // Convert ArrayBuffer to Buffer if needed
-      const buffer = audioData instanceof ArrayBuffer 
-        ? Buffer.from(audioData) 
+      const buffer = audioData instanceof ArrayBuffer
+        ? Buffer.from(audioData)
         : audioData
 
+      // Update activity timestamp
+      session.lastActivityAt = new Date()
+      
       // Send audio data to Deepgram
       session.connection.send(buffer)
-      
     } catch (error) {
       console.error(`❌ Error processing audio chunk for session ${sessionId}:`, error)
       this.emit('error', {
@@ -155,30 +190,34 @@ export class STTService extends EventEmitter {
 
   finishSession(sessionId: string): void {
     const session = this.sessions.get(sessionId)
-    
     if (!session) {
       console.warn(`⚠️ No STT session to finish: ${sessionId}`)
       return
     }
 
     console.log(`🛑 Finishing STT session: ${sessionId}`)
-
     try {
       if (session.connection && session.isActive) {
+        // Send a final message to indicate end of speech
+        console.log(`🛑 [STTService] finishSession() called for ${sessionId}`);
+
         session.connection.finish()
       }
     } catch (error) {
       console.error(`❌ Error finishing session ${sessionId}:`, error)
     } finally {
-      this.cleanupSession(sessionId)
+      // Don't immediately cleanup, give some time for final transcripts
+      setTimeout(() => {
+        this.cleanupSession(sessionId)
+      }, 2000) // Wait 2 seconds before cleanup
     }
   }
 
   // Clean up session by socket ID (when client disconnects)
   cleanupBySocketId(socketId: string): void {
     console.log(`🧹 Cleaning up sessions for socket: ${socketId}`)
-    
     const sessionsToCleanup: string[] = []
+    
     for (const [sessionId, session] of this.sessions) {
       if (session.socketId === socketId) {
         sessionsToCleanup.push(sessionId)
@@ -192,21 +231,19 @@ export class STTService extends EventEmitter {
 
   private async cleanupSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId)
-    
     if (!session) {
       return
     }
 
     console.log(`🧹 Cleaning up STT session: ${sessionId}`)
-
     try {
       session.isActive = false
-
       if (session.connection) {
         session.connection.removeAllListeners()
-        
         try {
-          session.connection.finish()
+          if (session.connection.getReadyState() === 1) {
+            session.connection.finish()
+          }
         } catch (error) {
           console.error(`❌ Error closing connection for session ${sessionId}:`, error)
         }
@@ -214,7 +251,6 @@ export class STTService extends EventEmitter {
 
       this.sessions.delete(sessionId)
       this.emit('sessionCleaned', { sessionId })
-      
     } catch (error) {
       console.error(`❌ Error during cleanup for session ${sessionId}:`, error)
     }
@@ -242,12 +278,16 @@ export class STTService extends EventEmitter {
   async cleanup(): Promise<void> {
     console.log('🧹 Cleaning up all STT sessions')
     
+    // Clear cleanup interval
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval)
+    }
+
     const sessionIds = Array.from(this.sessions.keys())
-    
     for (const sessionId of sessionIds) {
       await this.cleanupSession(sessionId)
     }
-    
+
     this.sessions.clear()
     console.log('✅ All STT sessions cleaned up')
   }

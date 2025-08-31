@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { v4 as uuidv4 } from 'uuid'
 import { AnimatePresence } from "framer-motion"
 import { RoleSelection } from "@/components/tech-selection/role-selection"
 import { TechStackSelection } from "@/components/tech-selection/tech-stack-selection"
