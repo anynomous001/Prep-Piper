@@ -94,6 +94,8 @@ class SocketManager {
     }
   }
 
+
+
   static disconnect(): void {
     if (SocketManager.instance) {
       SocketManager.instance.removeAllListeners()
@@ -104,11 +106,7 @@ class SocketManager {
     SocketManager.reconnectAttempts = 0
   }
 }
+// export function getSocket() { throw new Error("Use useSocket hook instead of getSocket") }
 
-// Legacy function for backward compatibility
-export function getSocket(): Socket {
-  // This should not be used in new code, use useSocket hook instead
-  throw new Error("Use useSocket hook instead of getSocket")
-}
 
 export { SocketManager }

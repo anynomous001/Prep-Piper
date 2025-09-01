@@ -1,19 +1,26 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { getSocket } from "@/components/connection/socket-manager"
+import { Send } from "lucide-react"
 
-const MIN_CHARS = 20
-const MAX_CHARS = 1200
+
+const MIN_CHARS = 10
+const MAX_CHARS = 1500
 const DRAFT_KEY = "prep-piper:text-draft"
 
-export function TextInput() {
+interface TextInputProps {
+  disabled?: boolean
+  onSubmit: (text: string) => void
+}
+
+export function TextInput({ disabled, onSubmit }: TextInputProps) {
   const [value, setValue] = useState("")
   const count = value.length
-  const valid = useMemo(() => count >= MIN_CHARS && count <= MAX_CHARS, [count])
+  const isValid = !disabled && count >= MIN_CHARS && count <= MAX_CHARS
 
+  // Load draft
   useEffect(() => {
     try {
       const draft = localStorage.getItem(DRAFT_KEY)
@@ -21,45 +28,64 @@ export function TextInput() {
     } catch {}
   }, [])
 
+  // Auto-save draft
   useEffect(() => {
     try {
       localStorage.setItem(DRAFT_KEY, value)
     } catch {}
   }, [value])
 
-  const submit = () => {
-    if (!valid) return
-    const socket = getSocket()
-    if (!socket.connected) return
-    socket.emit("transcript", { text: value }) // send as text answer
+  const handleSubmit = () => {
+    if (!isValid) return
+    onSubmit(value.trim())
     setValue("")
     try {
       localStorage.removeItem(DRAFT_KEY)
     } catch {}
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <Textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Type your response here. Markdown supported."
+        onKeyDown={handleKeyDown}
+        placeholder="Type your response here. Ctrl+Enter to submit."
         className="min-h-32 resize-y bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
         maxLength={MAX_CHARS}
+        disabled={disabled}
       />
-      <div className="flex items-center justify-between text-sm">
-        <span className={count < MIN_CHARS ? "text-zinc-400" : "text-teal-300"}>
-          {count} / {MAX_CHARS} characters
-        </span>
-        <Button
-          onClick={submit}
-          disabled={!valid}
-          className="bg-teal-500 text-white hover:bg-teal-400 disabled:opacity-50"
+
+      <div className="flex items-center justify-between">
+        <span
+          className={`text-xs ${
+            count > MAX_CHARS
+              ? "text-red-500"
+              : count < MIN_CHARS
+              ? "text-yellow-500"
+              : "text-green-500"
+          }`}
         >
+          {count} / {MAX_CHARS}
+        </span>
+        <Button onClick={handleSubmit} disabled={!isValid} size="sm" className="gap-2">
+          <Send className="h-4 w-4" />
           Submit
         </Button>
       </div>
-      {!valid && <p className="text-sm text-zinc-400">Minimum {MIN_CHARS} characters required.</p>}
+
+      {count > 0 && count < MIN_CHARS && (
+        <p className="text-xs text-yellow-600">
+          Minimum {MIN_CHARS} characters required
+        </p>
+      )}
     </div>
   )
 }

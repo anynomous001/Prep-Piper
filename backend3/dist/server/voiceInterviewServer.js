@@ -12,9 +12,9 @@ const uuid_1 = require("uuid");
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
-const sttService_1 = require("../services/stt/sttService");
-const ttsService_1 = require("../services/tts/ttsService");
-const interviewAgent_1 = require("../services/interview/interviewAgent");
+const sttService_js_1 = require("../services/stt/sttService.js");
+const ttsService_js_1 = require("../services/tts/ttsService.js");
+const interviewAgent_js_1 = require("../services/interview/interviewAgent.js");
 dotenv_1.default.config();
 class VoiceInterviewServer {
     app;
@@ -42,9 +42,9 @@ class VoiceInterviewServer {
             allowEIO3: true,
         });
         // Initialize services
-        this.sttService = new sttService_1.STTService();
-        this.ttsService = new ttsService_1.TTSService();
-        this.agent = new interviewAgent_1.InterviewAgent();
+        this.sttService = new sttService_js_1.STTService();
+        this.ttsService = new ttsService_js_1.TTSService();
+        this.agent = new interviewAgent_js_1.InterviewAgent();
         this.setupMiddleware();
         this.setupRoutes();
         this.setupSocketHandlers();
@@ -145,6 +145,37 @@ class VoiceInterviewServer {
                     console.error(`❌ Error starting interview:`, error);
                     socket.emit("error", "Failed to start interview");
                 }
+            });
+            // Add this in setupSocketHandlers() method after the existing socket handlers
+            socket.on("textResponse", (data) => {
+                const { sessionId, text } = data;
+                if (!sessionId || !text) {
+                    console.error("❌ Invalid text response data");
+                    return;
+                }
+                const session = this.activeSessions.get(sessionId);
+                if (!session) {
+                    console.error(`❌ Invalid session for text response: ${sessionId}`);
+                    return;
+                }
+                if (session.socketId !== socket.id) {
+                    console.error(`❌ Socket ${socket.id} doesn't own session ${sessionId}`);
+                    return;
+                }
+                // Update activity timestamp
+                session.lastActivityAt = new Date();
+                console.log(`📝 Text response received for ${sessionId}:`, text);
+                // Emit transcript event to frontend for display
+                this.io.to(sessionId).emit("transcript", {
+                    sessionId,
+                    text: text.trim(),
+                    confidence: 1.0,
+                    isFinal: true,
+                    timestamp: new Date(),
+                    source: "text" // Indicate this came from text input
+                });
+                // Process answer through interview agent directly
+                this.agent.processAnswer(sessionId, text.trim());
             });
             socket.on("audioChunk", (data) => {
                 const { sessionId, audioData } = data;

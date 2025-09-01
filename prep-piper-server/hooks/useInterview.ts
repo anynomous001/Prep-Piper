@@ -60,14 +60,19 @@ export default  function useInterview() {
       setInterviewState("processing")
     }
 
-    const onFinalTranscript = (payload: { text: string; confidence?: number; isFinal: boolean }) => {
-      console.log("📝 Final transcript:", payload.text)
-      setTranscript((t) => ({ 
-        interim: "", 
-        final: [...t.final, payload.text] 
-      }))
-      setInterviewState("waiting_for_next")
-    }
+    const onFinalTranscript = (payload: { text: string; confidence?: number; isFinal: boolean; source?: string }) => {
+  console.log("📝 Final transcript:", payload.text, "Source:", payload.source || "voice")
+  
+  // Only add to transcript if it's from voice (STT), text responses are already added locally
+  if (!payload.source || payload.source === "voice") {
+    setTranscript((t) => ({ 
+      interim: "", 
+      final: [...t.final, `You: ${payload.text}`] 
+    }))
+  }
+  setInterviewState("waiting_for_next")
+}
+
 
     const onSttConnected = (payload: { sessionId: string }) => {
       console.log("🎤 STT connected for session:", payload.sessionId)
@@ -264,31 +269,56 @@ export default  function useInterview() {
     
     setInterviewState("processing")
   }, [])
-
   // Submit text response
-  const submitTextResponse = useCallback((text: string) => {
-    if (!socket || !isConnected || !sessionId) {
-      setError("Not connected to server")
-      return
-    }
+//   const submitTextResponse = useCallback((text: string) => {
+//     if (!socket || !isConnected || !sessionId) {
+//       setError("Not connected to server")
+//       return
+//     }
 
-    console.log("📝 Submitting text response:", text)
+//     console.log("📝 Submitting text response:", text)
     
-    // Send text as transcript matching backend3 format
-    socket.emit("transcript", {
-      sessionId,
-      text,
-      confidence: 1.0,
-      isFinal: true,
-      timestamp: new Date()
-    })
+//     // Send text as transcript matching backend3 format
+//     socket.emit("transcript", {
+//       sessionId,
+//       text,
+//       confidence: 1.0,
+//       isFinal: true,
+//       timestamp: new Date()
+//     })
     
-    setTranscript((t) => ({ 
-      interim: "", 
-      final: [...t.final, text] 
-    }))
-    setInterviewState("processing")
-  }, [socket, isConnected, sessionId])
+//     setTranscript((t) => ({ 
+//       interim: "", 
+//       final: [...t.final, text] 
+//     }))
+//     setInterviewState("processing")
+//   }, [socket, isConnected, sessionId])
+
+// Submit text response
+const submitTextResponse = useCallback((text: string) => {
+  if (!socket || !isConnected || !sessionId) {
+    setError("Not connected to server")
+    return
+  }
+
+  console.log("📝 Submitting text response:", text)
+  
+  // Use dedicated textResponse event for text input
+  socket.emit("textResponse", {
+    sessionId,
+    text: text.trim()
+  })
+  
+  // Update local transcript immediately for better UX
+  setTranscript((t) => ({ 
+    interim: "", 
+    final: [...t.final, `You: ${text.trim()}`] 
+  }))
+  setInterviewState("processing")
+}, [socket, isConnected, sessionId])
+
+
+
 
   // End interview
   const endInterview = useCallback(() => {
