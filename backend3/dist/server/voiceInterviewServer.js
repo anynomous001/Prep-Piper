@@ -130,7 +130,7 @@ class VoiceInterviewServer {
                     // Start STT session first
                     await this.sttService.startSession(sessionId, socket.id);
                     // Initialize interview agent
-                    const [agentSessionId, question] = this.agent.startInterview(data.techStack, data.position);
+                    const [agentSessionId, question] = this.agent.startInterview(data.techStack, data.position, sessionId);
                     this.io.to(sessionId).emit("interviewStarted", {
                         sessionId,
                         question: { questionText: question },

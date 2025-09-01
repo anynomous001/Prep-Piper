@@ -85,12 +85,12 @@ class InterviewAgent extends events_1.EventEmitter {
     /**
      * Start a new interview session
      */
-    startInterview(techStack = "Python, JavaScript, React", position = "Software Developer") {
+    startInterview(techStack = "Python, JavaScript, React", position = "Software Developer", externalSessionId) {
         try {
             console.log("Starting interview with:", { techStack, position });
             // Ensure techStack is a string
             const techStackStr = typeof techStack === "string" ? techStack : String(techStack);
-            const sessionId = (0, uuid_1.v4)().substring(0, 8);
+            const sessionId = externalSessionId || (0, uuid_1.v4)().substring(0, 8);
             this.sessions[sessionId] = {
                 tech_stack: techStackStr,
                 position: position,

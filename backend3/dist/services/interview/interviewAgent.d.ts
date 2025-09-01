@@ -7,7 +7,7 @@ export declare class InterviewAgent extends EventEmitter {
     /**
      * Start a new interview session
      */
-    startInterview(techStack?: string, position?: string): [string | null, string];
+    startInterview(techStack?: string, position?: string, externalSessionId?: string): [string | null, string];
     /**
      * Process candidate answer and generate next question
      */
