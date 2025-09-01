@@ -56,7 +56,7 @@ class STTService extends events_1.EventEmitter {
                 sample_rate: 16000,
                 channels: 1,
                 endpointing: 300,
-                utterance_end_ms: 2000, // Increased to 2 seconds
+                utterance_end_ms: 10000,
                 vad_events: true, // Enable voice activity detection
                 punctuate: true,
                 profanity_filter: false,
@@ -77,6 +77,7 @@ class STTService extends events_1.EventEmitter {
                 session.isActive = true;
                 session.lastActivityAt = new Date();
                 this.emit("connected", { sessionId });
+                console.log(`🔍 Connection state: ${connection.getReadyState()}`);
             });
             connection.on(sdk_1.LiveTranscriptionEvents.Transcript, (data) => {
                 session.lastActivityAt = new Date();
@@ -105,6 +106,7 @@ class STTService extends events_1.EventEmitter {
             });
             connection.on(sdk_1.LiveTranscriptionEvents.Close, (closeEvent) => {
                 console.log(`🎤 Deepgram connection closed for session: ${sessionId}`, closeEvent);
+                console.log(`🔍 Close code: ${closeEvent.code}, reason: ${closeEvent.reason}`);
                 this.emit("disconnected", { sessionId, closeEvent });
                 // session.isActive = false
             });

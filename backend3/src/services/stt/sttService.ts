@@ -4,6 +4,9 @@ import dotenv from "dotenv"
 
 dotenv.config()
 
+
+
+
 interface STTSession {
   sessionId: string
   connection: any
@@ -69,7 +72,7 @@ export class STTService extends EventEmitter {
         sample_rate: 16000,
         channels: 1,
         endpointing: 300,
-        utterance_end_ms: 2000, // Increased to 2 seconds
+        utterance_end_ms: 10000,
         vad_events: true, // Enable voice activity detection
         punctuate: true,
         profanity_filter: false,
@@ -92,6 +95,10 @@ export class STTService extends EventEmitter {
         session.isActive = true
         session.lastActivityAt = new Date()
         this.emit("connected", { sessionId })
+
+
+        console.log(`🔍 Connection state: ${connection.getReadyState()}`)
+
       })
 
       connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
@@ -124,6 +131,7 @@ export class STTService extends EventEmitter {
 
       connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
         console.log(`🎤 Deepgram connection closed for session: ${sessionId}`, closeEvent)
+          console.log(`🔍 Close code: ${closeEvent.code}, reason: ${closeEvent.reason}`)
         this.emit("disconnected", { sessionId, closeEvent })
         // session.isActive = false
       })

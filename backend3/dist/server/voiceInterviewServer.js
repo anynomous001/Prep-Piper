@@ -177,8 +177,33 @@ class VoiceInterviewServer {
                 // Process answer through interview agent directly
                 this.agent.processAnswer(sessionId, text.trim());
             });
+            // socket.on("audioChunk", (data) => {
+            //   const { sessionId, audioData } = data
+            //   if (!sessionId) {
+            //     console.error("❌ No sessionId provided with audio chunk")
+            //     return
+            //   }
+            //   const session = this.activeSessions.get(sessionId)
+            //   if (!session) {
+            //     console.error(`❌ Invalid session for audio chunk: ${sessionId}`)
+            //     return
+            //   }
+            //   if (session.socketId !== socket.id) {
+            //     console.error(`❌ Socket ${socket.id} doesn't own session ${sessionId}`)
+            //     return
+            //   }
+            //   // Update activity timestamp
+            //   session.lastActivityAt = new Date()
+            //   try {
+            //     const buffer = Buffer.from(audioData)
+            //     this.sttService.processAudioChunk(sessionId, buffer)
+            //   } catch (error) {
+            //     console.error(`❌ Error processing audio chunk for ${sessionId}:`, error)
+            //   }
+            // })
             socket.on("audioChunk", (data) => {
                 const { sessionId, audioData } = data;
+                console.log(`📥 Received audio chunk for ${sessionId}: ${audioData?.length || 0} bytes`);
                 if (!sessionId) {
                     console.error("❌ No sessionId provided with audio chunk");
                     return;
@@ -196,6 +221,7 @@ class VoiceInterviewServer {
                 session.lastActivityAt = new Date();
                 try {
                     const buffer = Buffer.from(audioData);
+                    console.log(`📤 Sending ${buffer.length} bytes to STT service for session ${sessionId}`);
                     this.sttService.processAudioChunk(sessionId, buffer);
                 }
                 catch (error) {
@@ -242,21 +268,35 @@ class VoiceInterviewServer {
                     });
                 }
             });
+            // socket.on("disconnect", (reason) => {
+            //   console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`)
+            //   const sessionId = this.socketToSession.get(socket.id)
+            //   // Don't cleanup session immediately on disconnect
+            //   // Give time for potential reconnection
+            //   if (sessionId) {
+            //     setTimeout(() => {
+            //       const session = this.activeSessions.get(sessionId)
+            //       // Only cleanup if socket hasn't reconnected
+            //       if (session && session.socketId === socket.id) {
+            //         console.log(`🧹 Auto-cleaning up session ${sessionId} after disconnect timeout`)
+            //         this.cleanupSession(sessionId)
+            //       }
+            //     }, 10000) // 10 second grace period for reconnection
+            //   }
+            //   this.sttService.cleanupBySocketId(socket.id)
+            // })
             socket.on("disconnect", (reason) => {
                 console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`);
                 const sessionId = this.socketToSession.get(socket.id);
-                // Don't cleanup session immediately on disconnect
-                // Give time for potential reconnection
-                if (sessionId) {
-                    setTimeout(() => {
-                        const session = this.activeSessions.get(sessionId);
-                        // Only cleanup if socket hasn't reconnected
-                        if (session && session.socketId === socket.id) {
-                            console.log(`🧹 Auto-cleaning up session ${sessionId} after disconnect timeout`);
-                            this.cleanupSession(sessionId);
-                        }
-                    }, 10000); // 10 second grace period for reconnection
-                }
+                // if (sessionId) {
+                //   setTimeout(() => {
+                //     const session = this.activeSessions.get(sessionId)
+                //     if (session && session.socketId === socket.id) {
+                //       this.cleanupSession(sessionId)
+                //     }
+                //   }, 10000)
+                // }
+                // Do not auto-cleanup here. Rely on explicit finalizeAudio to end STT session.
                 this.sttService.cleanupBySocketId(socket.id);
             });
             socket.on("error", (error) => {

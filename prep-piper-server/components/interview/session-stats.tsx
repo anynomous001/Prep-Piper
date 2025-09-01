@@ -21,7 +21,7 @@ export function SessionStats({
   return (
     <Card className="border-zinc-800 bg-zinc-950">
       <CardHeader>
-        <CardTitle className="text-zinc-100">Session</CardTitle>
+        <CardTitle className="text-zinc-100"> </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 text-sm">
         <div className="flex items-center justify-between text-zinc-300">

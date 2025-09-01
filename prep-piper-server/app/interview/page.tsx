@@ -36,6 +36,7 @@ export default function InterviewPage() {
     startRecording,
     stopRecording,
     submitTextResponse,
+    submitVoiceResponse,
     endInterview,
     clearError
   } = useInterview()
@@ -156,12 +157,14 @@ export default function InterviewPage() {
 
                   {/* Input Controls */}
                   {inputMode === "voice" ? (
-                    <VoiceControls
-                      isRecording={isRecording}
-                      onStartRecording={startRecording}
-                      onStopRecording={stopRecording}
-                      disabled={interviewState !== "active"}
-                    />
+                   <VoiceControls
+  isRecording={isRecording}
+  onStartRecording={startRecording}
+  onStopRecording={stopRecording}
+ onSendRecording={submitVoiceResponse} 
+   disabled={interviewState !== "active"}
+/>
+
                   ) : (
                     <TextInput
                       onSubmit={submitTextResponse}
