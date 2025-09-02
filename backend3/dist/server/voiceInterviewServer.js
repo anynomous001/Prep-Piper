@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VoiceInterviewServer = void 0;
+// Add these imports at the top
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
 const socket_io_1 = require("socket.io");
@@ -127,12 +128,13 @@ class VoiceInterviewServer {
                     this.activeSessions.set(sessionId, session);
                     this.socketToSession.set(socket.id, sessionId);
                     socket.join(sessionId);
-                    // Start STT session first
+                    // CRITICAL: Start STT session ONCE with our sessionId
                     await this.sttService.startSession(sessionId, socket.id);
-                    // Initialize interview agent
-                    const [agentSessionId, question] = this.agent.startInterview(data.techStack, data.position, sessionId);
+                    // Initialize interview agent with our sessionId (pass it as external ID)
+                    const [agentSessionId, question] = this.agent.startInterview(data.techStack, data.position, sessionId // Pass our sessionId to agent
+                    );
                     this.io.to(sessionId).emit("interviewStarted", {
-                        sessionId,
+                        sessionId, // Use our sessionId consistently
                         question: { questionText: question },
                     });
                     console.log(`✅ Interview started successfully for session: ${sessionId}`);
@@ -146,7 +148,6 @@ class VoiceInterviewServer {
                     socket.emit("error", "Failed to start interview");
                 }
             });
-            // Add this in setupSocketHandlers() method after the existing socket handlers
             socket.on("textResponse", (data) => {
                 const { sessionId, text } = data;
                 if (!sessionId || !text) {
@@ -177,30 +178,6 @@ class VoiceInterviewServer {
                 // Process answer through interview agent directly
                 this.agent.processAnswer(sessionId, text.trim());
             });
-            // socket.on("audioChunk", (data) => {
-            //   const { sessionId, audioData } = data
-            //   if (!sessionId) {
-            //     console.error("❌ No sessionId provided with audio chunk")
-            //     return
-            //   }
-            //   const session = this.activeSessions.get(sessionId)
-            //   if (!session) {
-            //     console.error(`❌ Invalid session for audio chunk: ${sessionId}`)
-            //     return
-            //   }
-            //   if (session.socketId !== socket.id) {
-            //     console.error(`❌ Socket ${socket.id} doesn't own session ${sessionId}`)
-            //     return
-            //   }
-            //   // Update activity timestamp
-            //   session.lastActivityAt = new Date()
-            //   try {
-            //     const buffer = Buffer.from(audioData)
-            //     this.sttService.processAudioChunk(sessionId, buffer)
-            //   } catch (error) {
-            //     console.error(`❌ Error processing audio chunk for ${sessionId}:`, error)
-            //   }
-            // })
             socket.on("audioChunk", (data) => {
                 const { sessionId, audioData } = data;
                 console.log(`📥 Received audio chunk for ${sessionId}: ${audioData?.length || 0} bytes`);
@@ -268,35 +245,9 @@ class VoiceInterviewServer {
                     });
                 }
             });
-            // socket.on("disconnect", (reason) => {
-            //   console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`)
-            //   const sessionId = this.socketToSession.get(socket.id)
-            //   // Don't cleanup session immediately on disconnect
-            //   // Give time for potential reconnection
-            //   if (sessionId) {
-            //     setTimeout(() => {
-            //       const session = this.activeSessions.get(sessionId)
-            //       // Only cleanup if socket hasn't reconnected
-            //       if (session && session.socketId === socket.id) {
-            //         console.log(`🧹 Auto-cleaning up session ${sessionId} after disconnect timeout`)
-            //         this.cleanupSession(sessionId)
-            //       }
-            //     }, 10000) // 10 second grace period for reconnection
-            //   }
-            //   this.sttService.cleanupBySocketId(socket.id)
-            // })
             socket.on("disconnect", (reason) => {
                 console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`);
-                const sessionId = this.socketToSession.get(socket.id);
-                // if (sessionId) {
-                //   setTimeout(() => {
-                //     const session = this.activeSessions.get(sessionId)
-                //     if (session && session.socketId === socket.id) {
-                //       this.cleanupSession(sessionId)
-                //     }
-                //   }, 10000)
-                // }
-                // Do not auto-cleanup here. Rely on explicit finalizeAudio to end STT session.
+                // Only cleanup STT streams, not the interview session
                 this.sttService.cleanupBySocketId(socket.id);
             });
             socket.on("error", (error) => {

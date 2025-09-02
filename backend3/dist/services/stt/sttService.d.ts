@@ -6,15 +6,18 @@ interface STTSession {
     createdAt: Date;
     socketId: string | null;
     lastActivityAt: Date;
+    audioBuffer: Buffer[];
 }
 export declare class STTService extends EventEmitter {
     private deepgram;
     private sessions;
     private cleanupInterval;
     constructor();
+    private testDeepgramConnection;
     private cleanupStaleSessions;
     startSession(sessionId: string, socketId?: string): Promise<void>;
     processAudioChunk(sessionId: string, audioData: Buffer | ArrayBuffer): void;
+    private convertWebMToPCM;
     finishSession(sessionId: string): void;
     cleanupBySocketId(socketId: string): void;
     private cleanupSession;

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import type { TechSelection } from "@/lib/types"
 import useInterview  from "@/hooks/useInterview"
 import { ArrowLeft, RotateCcw } from "lucide-react"
+import { LiveTranscriber } from "@/components/interview/Livetranscriber"
 
 export default function InterviewPage() {
   const router = useRouter()
@@ -157,13 +158,15 @@ export default function InterviewPage() {
 
                   {/* Input Controls */}
                   {inputMode === "voice" ? (
-                   <VoiceControls
-  isRecording={isRecording}
-  onStartRecording={startRecording}
-  onStopRecording={stopRecording}
- onSendRecording={submitVoiceResponse} 
-   disabled={interviewState !== "active"}
-/>
+//                    <VoiceControls
+//   isRecording={isRecording}
+//   onStartRecording={startRecording}
+//   onStopRecording={stopRecording}
+//  onSendRecording={submitVoiceResponse} 
+//    disabled={interviewState !== "active"}
+// />
+
+<LiveTranscriber />
 
                   ) : (
                     <TextInput

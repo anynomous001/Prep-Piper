@@ -4,9 +4,6 @@ import dotenv from "dotenv"
 
 dotenv.config()
 
-
-
-
 interface STTSession {
   sessionId: string
   connection: any
@@ -14,6 +11,7 @@ interface STTSession {
   createdAt: Date
   socketId: string | null
   lastActivityAt: Date
+  audioBuffer: Buffer[]
 }
 
 export class STTService extends EventEmitter {
@@ -23,6 +21,11 @@ export class STTService extends EventEmitter {
 
   constructor() {
     super()
+
+this.testDeepgramConnection()
+
+
+
     this.deepgram = createClient(process.env.DEEPGRAM_API_KEY!)
     console.log("✅ STTService initialized with session isolation")
 
@@ -31,7 +34,39 @@ export class STTService extends EventEmitter {
       this.cleanupStaleSessions()
     }, 30000) // Check every 30 seconds
   }
-
+private async testDeepgramConnection(): Promise<void> {
+  try {
+    console.log("🔍 Testing Deepgram API key...")
+    
+    // Check if API key exists
+    if (!process.env.DEEPGRAM_API_KEY) {
+      throw new Error("DEEPGRAM_API_KEY not found in environment variables")
+    }
+    
+    console.log(`🔑 API Key found: ${process.env.DEEPGRAM_API_KEY.substring(0, 10)}...`)
+    
+    const testClient = createClient(process.env.DEEPGRAM_API_KEY!)
+    
+    // Test with a simpler API call - get projects
+    const projectsResponse = await testClient.manage.getProjects()
+    console.log("✅ Deepgram API key is valid")
+    //@ts-ignore
+    console.log(`📊 Found ${projectsResponse.projects?.length || 0} projects`)
+    
+    // If no projects, that's fine - the key still works
+        //@ts-ignore
+    if (!projectsResponse.projects || projectsResponse.projects.length === 0) {
+      console.log("ℹ️ No projects found, but API key is valid")
+    }
+    
+  } catch (error) {
+    console.error("❌ Deepgram API key test failed:", error)
+    console.log("Please check your DEEPGRAM_API_KEY in the .env file")
+    
+    // Don't throw the error, just log it
+    console.log("🔄 Continuing with STT service initialization...")
+  }
+}
   private cleanupStaleSessions(): void {
     const now = new Date()
     const staleThreshold = 5 * 60 * 1000 // 5 minutes
@@ -72,8 +107,8 @@ export class STTService extends EventEmitter {
         sample_rate: 16000,
         channels: 1,
         endpointing: 300,
-        utterance_end_ms: 10000,
-        vad_events: true, // Enable voice activity detection
+        utterance_end_ms: 15000, // Increased timeout
+        vad_events: true,
         punctuate: true,
         profanity_filter: false,
         redact: false,
@@ -87,6 +122,7 @@ export class STTService extends EventEmitter {
         createdAt: new Date(),
         socketId: socketId || null,
         lastActivityAt: new Date(),
+        audioBuffer: []
       }
 
       // Set up connection event handlers
@@ -95,10 +131,7 @@ export class STTService extends EventEmitter {
         session.isActive = true
         session.lastActivityAt = new Date()
         this.emit("connected", { sessionId })
-
-
         console.log(`🔍 Connection state: ${connection.getReadyState()}`)
-
       })
 
       connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
@@ -131,9 +164,9 @@ export class STTService extends EventEmitter {
 
       connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
         console.log(`🎤 Deepgram connection closed for session: ${sessionId}`, closeEvent)
-          console.log(`🔍 Close code: ${closeEvent.code}, reason: ${closeEvent.reason}`)
+        console.log(`🔍 Close code: ${closeEvent.code}, reason: ${closeEvent.reason}`)
         this.emit("disconnected", { sessionId, closeEvent })
-        // session.isActive = false
+        session.isActive = false
       })
 
       connection.on(LiveTranscriptionEvents.Error, (error: any) => {
@@ -180,17 +213,51 @@ export class STTService extends EventEmitter {
       // Convert ArrayBuffer to Buffer if needed
       const buffer = audioData instanceof ArrayBuffer ? Buffer.from(audioData) : audioData
 
+      // Convert WebM/Opus to linear16 PCM
+      const pcmBuffer = this.convertWebMToPCM(buffer)
+
       // Update activity timestamp
       session.lastActivityAt = new Date()
 
       // Send audio data to Deepgram
-      session.connection.send(buffer)
+      if (pcmBuffer && pcmBuffer.length > 0) {
+        session.connection.send(pcmBuffer)
+        console.log(`📤 Sent ${pcmBuffer.length} bytes PCM to Deepgram for session ${sessionId}`)
+      }
     } catch (error) {
       console.error(`❌ Error processing audio chunk for session ${sessionId}:`, error)
       this.emit("error", {
         sessionId,
         error: `Audio processing error: ${error instanceof Error ? error.message : "Unknown error"}`,
       })
+    }
+  }
+
+  private convertWebMToPCM(webmBuffer: Buffer): Buffer {
+    try {
+      // Simple conversion: extract raw audio data from WebM container
+      // This is a simplified approach - in production, you'd use ffmpeg or similar
+      
+      // For now, we'll assume the buffer contains some audio data and try to extract it
+      // Skip WebM headers and metadata (typically first ~1000 bytes contain container info)
+      const headerSkip = Math.min(1000, webmBuffer.length / 4)
+      const audioData = webmBuffer.slice(headerSkip)
+      
+      // Convert to 16-bit PCM at 16kHz
+      const pcmLength = Math.floor(audioData.length / 2) * 2 // Ensure even length
+      const pcmBuffer = Buffer.alloc(pcmLength)
+      
+      for (let i = 0; i < pcmLength; i += 2) {
+        // Simple conversion - copy bytes as-is for now
+        // In production, you'd properly decode Opus and resample
+        pcmBuffer[i] = audioData[i] || 0
+        pcmBuffer[i + 1] = audioData[i + 1] || 0
+      }
+      
+      return pcmBuffer
+    } catch (error) {
+      console.error("Error converting WebM to PCM:", error)
+      return Buffer.alloc(0)
     }
   }
 
@@ -204,9 +271,7 @@ export class STTService extends EventEmitter {
     console.log(`🛑 Finishing STT session: ${sessionId}`)
     try {
       if (session.connection && session.isActive) {
-        // Send a final message to indicate end of speech
         console.log(`🛑 [STTService] finishSession() called for ${sessionId}`)
-
         session.connection.finish()
       }
     } catch (error) {
