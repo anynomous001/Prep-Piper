@@ -7,7 +7,14 @@ export type TechSelection = {
   experience: "beginner" | "intermediate" | "advanced"
 }
 
-export type TranscriptState = {
+// lib/types.ts
+export interface Message {
+  role: "interviewer" | "candidate"
+  text: string
+  timestamp: Date
+}
+
+export interface TranscriptState {
+  messages: Message[]
   interim: string
-  final: string[]
 }

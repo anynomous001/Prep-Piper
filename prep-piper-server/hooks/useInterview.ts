@@ -14,8 +14,11 @@ export default function useInterview() {
   const [question, setQuestion] = useState<string>("")
   const [questionIdx, setQuestionIdx] = useState(0)
   const totalQuestions = 5
-  const [transcript, setTranscript] = useState<TranscriptState>({ interim: "", final: [] })
-  const [error, setError] = useState<string | null>(null)
+const [transcript, setTranscript] = useState<TranscriptState>({ 
+  messages: [], 
+  interim: "" 
+})
+ const [error, setError] = useState<string | null>(null)
 
   // Audio recording refs
   const [isRecording, setIsRecording] = useState(false)
@@ -35,12 +38,33 @@ export default function useInterview() {
       setQuestionIdx(1)
       setInterviewState("active")
       setError(null)
+
+
+// Add the first question to transcript
+  setTranscript((t) => ({
+    messages: [
+      ...t.messages,
+      { role: "interviewer", text: payload.question.questionText, timestamp: new Date() }
+    ],
+    interim: ""
+  }))
+
+
     }
 
     const onNextQuestion = (payload: { question: string }) => {
       console.log("❓ Next question received:", payload.question)
       setQuestion(payload.question)
       setQuestionIdx((i) => Math.min(i + 1, totalQuestions))
+    // Add question to conversation history
+  setTranscript((t) => ({
+    messages: [
+      ...t.messages,
+      { role: "interviewer", text: payload.question, timestamp: new Date() }
+    ],
+    interim: ""
+  }))
+  
       setInterviewState("active")
     }
 
@@ -50,11 +74,14 @@ export default function useInterview() {
       cleanup()
       
       if (payload?.message) {
-        setTranscript((t) => ({ 
-          interim: "", 
-          final: [...t.final, `Interview Complete: ${payload.message}`] 
-        }))
-      }
+    setTranscript((t) => ({
+      messages: [
+        ...t.messages,
+        { role: "interviewer", text: `Interview Complete: ${payload.message}`, timestamp: new Date() }
+      ],
+      interim: ""
+    }))
+  }
     }
 
     const onError = (payload: { message?: string; error?: string }) => {
@@ -191,30 +218,33 @@ export default function useInterview() {
       // Set up Deepgram event listeners using correct API
       dgConnection.on(LiveTranscriptionEvents.Open, () => {
         console.log('🔗 Deepgram connection opened')
-        setTranscript((t) => ({ 
-          ...t, 
-          final: [...t.final, "[STT Service Connected]"] 
-        }))
+        // setTranscript((t) => ({ 
+        //   ...t, 
+        //   final: [...t.final, "[STT Service Connected]"] 
+        // }))
       })
 
          dgConnection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
        if (data.channel?.alternatives?.[0]?.transcript) {
-        const text = data.channel.alternatives[0].transcript
+          const text = data.channel.alternatives[0].transcript.trim()
          if (data.is_final) {
            console.log('📝 Final transcript:', text)
           // Buffer final STT locally—do NOT send to agent yet
-           setTranscript((t) => ({
-            interim: "",
-             final: [...t.final, `You: ${text}`]
-           }))
+  // Add candidate response to conversation
+      setTranscript((t) => ({
+        messages: [
+          ...t.messages,
+          { role: "candidate", text: text.trim(), timestamp: new Date() }
+        ],
+        interim: ""
+      }))
           setInterviewState("waiting_for_next")
          } else {
           setTranscript((t) => ({ ...t, interim: text }))
           setInterviewState("processing")
         }
-      }
-    })
-
+    }
+      })
 
       dgConnection.on(LiveTranscriptionEvents.Close, (event: any) => {
         console.log('🔗 Deepgram connection closed:', event)
@@ -313,22 +343,36 @@ const submitVoiceResponse = useCallback(() => {
     return
   }
   // Gather the last final transcript item (or interim if needed)
-  const last = transcript.final[transcript.final.length - 1] || transcript.interim
-  if (!last) {
-    console.warn("No transcript available to submit")
+//   const last = transcript.final[transcript.final.length - 1] || transcript.interim
+//   if (!last) {
+//     console.warn("No transcript available to submit")
+//     return
+//   }
+
+//   console.log("🔊 Submitting voice response to agent:", last)
+//   socket.emit("processTranscript", {
+//     sessionId,
+//     text: last.replace(/^You:\s*/, "")  // strip the prefix
+//   })
+
+ const candidateMessages = transcript.messages.filter(m => m.role === "candidate")
+  const lastMessage = candidateMessages[candidateMessages.length - 1]
+  
+  if (!lastMessage) {
+    console.warn("No candidate response available to submit")
     return
   }
 
-  console.log("🔊 Submitting voice response to agent:", last)
+  console.log("🔊 Submitting voice response to agent:", lastMessage.text)
   socket.emit("processTranscript", {
     sessionId,
-    text: last.replace(/^You:\s*/, "")  // strip the prefix
+    text: lastMessage.text
   })
 
   setInterviewState("processing")
   // Optionally clear interim and final buffer if desired
-  setTranscript({ interim: "", final: [] })
-}, [sessionId, socket, isConnected, transcript.final, transcript.interim])
+//   setTranscript({ interim: "", final: [] })
+}, [sessionId, socket, isConnected,transcript.messages])
 
 
   // Submit text response
@@ -340,15 +384,23 @@ const submitVoiceResponse = useCallback(() => {
 
     console.log("📝 Submitting text response:", text)
     
-    socket.emit("processTranscript", {
-      sessionId,
-      text: text.trim()
-    })
+     setTranscript((t) => ({
+    messages: [
+      ...t.messages,
+      { role: "candidate", text: text.trim(), timestamp: new Date() }
+    ],
+    interim: ""
+  }))
+  
+  socket.emit("processTranscript", {
+    sessionId,
+    text: text.trim()
+  })
     
-    setTranscript((t) => ({ 
-      interim: "", 
-      final: [...t.final, `You: ${text.trim()}`] 
-    }))
+    // setTranscript((t) => ({ 
+    //   interim: "", 
+    //   final: [...t.final, `You: ${text.trim()}`] 
+    // }))
     setInterviewState("processing")
   }, [socket, isConnected, sessionId])
 
