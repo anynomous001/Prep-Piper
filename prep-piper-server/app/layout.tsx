@@ -7,9 +7,13 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
-  generator: "v0.app",
+  icons: {
+    icon: '/mic.svg',
+    shortcut: '/mic.svg',
+    apple: '/mic.svg',
+  },
+  title: "Prep Piper - Master Your Interviews with AI",
+description: "Practice interviews with AI-powered feedback and personalized coaching."
 }
 
 export default function RootLayout({

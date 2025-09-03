@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="micGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#14b8a6"/> <!-- teal-500 -->
+      <stop offset="100%" style="stop-color:#3b82f6"/> <!-- blue-500 -->
+    </linearGradient>
+  </defs>
+  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" fill="url(#micGradient)" stroke="url(#micGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none" stroke="url(#micGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="12" x2="12" y1="19" y2="22" stroke="url(#micGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

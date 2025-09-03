@@ -38,13 +38,13 @@ export function SiteHeader() {
         <div className="hidden items-center gap-2 md:flex">
           <ThemeToggle />
           <Button asChild variant="ghost">
-            <Link href="/sign-in">Sign In</Link>
+            <Link href="/auth/sign-in">Sign In</Link>
           </Button>
           <Button
             asChild
             className="bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-sm hover:from-teal-400 hover:to-blue-400"
           >
-            <Link href="/sign-up">Sign Up</Link>
+            <Link href="/auth/sign-up">Sign Up</Link>
           </Button>
         </div>
 

@@ -1,48 +1,41 @@
-// lib/auth.ts
 import NextAuth from "next-auth"
-import Credentials from "next-auth/providers/credentials"
-//@ts-ignore
-import type { AuthOptions } from "next-auth"
+import authConfig from "../auth.config"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import { db } from '@/lib/db'
+import { getUserById } from '@/data/user'
 
-const getApprovedEmails = (): string[] =>
-  (process.env.APPROVED_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-
-console.log("Approved Emails:", getApprovedEmails())
-console.log("Raw Approved Emails:", process.env.APPROVED_EMAILS)
-
-
-export const authOptions: AuthOptions = {
-  providers: [
-    Credentials({
-    id: "credentials", // Add explicit ID
-      name: "Email",
-      credentials: { email: { label: "Email", type: "email" } },
-      async authorize(credentials: Partial<Record<"email", unknown>>) {
-        const email = typeof credentials?.email === "string" ? credentials.email.toLowerCase() : undefined
-        if (!email) return null
-        const approved = getApprovedEmails().includes(email)
-        return { id: email, email, name: email.split("@")[0], approved }
-      },
-    }),
-  ],
-  session: { strategy: "jwt" },
+export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
-    jwt({ token, user }: { token: any; user?: any }) {
-      if (user) token.approved = (user as any).approved
-      return token
-    },
-    session({ session, token }: { session: any; token: any }) {
-      if (session.user) session.user.approved = token.approved as boolean
+    async session({ token, session }) {
+      if (token.sub && session.user) {
+        session.user.id = token.sub
+      }
+
+      if (token.role && session.user) {
+        session.user.role = token.role
+      }
       return session
     },
+    async jwt({ token }) {
+      if (!token.sub) return token
+
+      const existingUser = await getUserById(token.sub)
+
+      if (!existingUser) return token
+
+      token.role = existingUser.role
+
+      return token
+    }
   },
   pages: {
-    signIn: "/auth/signin",
+    signIn: "/auth/sign-in",
+    // signOut: "/auth/signout",
     error: "/auth/error",
+    // verifyRequest: "/auth/verify-request",
+    newUser: "/auth/sign-up" // Will disable the new account creation screen
   },
-}
-
-export const { handlers, signIn, signOut, auth } = NextAuth(authOptions)
+  adapter: PrismaAdapter(db),
+  session: { strategy: "jwt" },
+  ...authConfig,
+})

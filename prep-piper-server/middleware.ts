@@ -1,41 +1,43 @@
-import { auth } from "@/lib/auth"
-import { NextResponse } from "next/server"
+import NextAuth from "next-auth"
+import authConfig from "./auth.config"
+import {
+  DEFAULT_LOGIN_REDIRECT,
+  publicRoutes,
+  authRoutes,
+  apiAuthPrefix
+} from "./routes"
 
-export default auth((req: any) => {
-  const { pathname } = req.nextUrl
-  const session = req.auth
-  const isLoggedIn = !!session
+const { auth } = NextAuth(authConfig)
 
-  // Redirect authenticated users away from auth pages
-  if (isLoggedIn && pathname.startsWith("/auth/signin")) {
-    return NextResponse.redirect(new URL("/", req.url))
+//@ts-ignore
+export default auth((req) => {
+  const { nextUrl } = req
+  const isLoggedIn = !!req.auth
+
+  const isApiAuthRoute = nextUrl.pathname.startsWith(apiAuthPrefix)
+  const isPublicRoute = publicRoutes.includes(nextUrl.pathname)
+  const isAuthRoute = authRoutes.includes(nextUrl.pathname)
+
+  if (isApiAuthRoute) {
+    return null
   }
 
-  // Protect routes for unauthenticated users
-  if (!session && (pathname.startsWith("/tech-selection") || pathname.startsWith("/interview"))) {
-    const signInUrl = new URL("/auth/signin", req.url)
-    signInUrl.searchParams.set("callbackUrl", req.url)
-    return NextResponse.redirect(signInUrl)
-  }
-
-  // Handle unapproved users
-  if (session && !session.user?.approved) {
-    if (pathname === "/auth/pending-approval") {
-      return NextResponse.next()
+  if (isAuthRoute) {
+    if (isLoggedIn) {
+      return Response.redirect(new URL(DEFAULT_LOGIN_REDIRECT, nextUrl))
     }
-    if (pathname.startsWith("/tech-selection") || pathname.startsWith("/interview")) {
-      return NextResponse.redirect(new URL("/auth/pending-approval", req.url))
-    }
+    return null
   }
 
-  // Redirect approved users away from pending approval
-  if (session && session.user?.approved && pathname === "/auth/pending-approval") {
-    return NextResponse.redirect(new URL("/", req.url))
+  if (!isLoggedIn && !isPublicRoute) {
+    return Response.redirect(new URL('/auth/signin', nextUrl))
   }
 
-  return NextResponse.next()
+  return null
 })
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)'
+  ]
 }
