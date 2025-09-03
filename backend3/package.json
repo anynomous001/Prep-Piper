@@ -4,10 +4,10 @@
   "main": "dist/index.js",
   "type": "commonjs",
   "scripts": {
+    "build": "tsc -b",
     "dev": "tsc -b && node dist/index.js",
     "dev:watch": "tsc --watch",
-    "start": "node dist/index.js",
-    "build": "tsc"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@deepgram/sdk": "^4.11.2",
