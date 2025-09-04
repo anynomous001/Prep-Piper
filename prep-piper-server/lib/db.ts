@@ -1,14 +1,30 @@
-import {PrismaClient} from '@prisma/client'
 
+// Temporary test - remove after it works
+let db: any;
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+try {
+  const { PrismaClient } = require('@prisma/client')
+  console.log('✅ Prisma Client imported successfully')
+
+  const globalForPrisma = globalThis as unknown as {
+    prisma: typeof PrismaClient | undefined
+  }
+
+  db =
+    globalForPrisma.prisma ??
+    new PrismaClient({
+      // log: ['query'],
+    })
+
+  if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+} catch (error) {
+  console.error('❌ Failed to import:', error)
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ['query'],
-  })
+export { db };
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+
+
+
+
+

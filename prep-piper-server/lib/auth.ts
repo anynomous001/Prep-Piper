@@ -29,11 +29,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }
   },
   pages: {
-    signIn: "/auth/sign-in",
+    signIn: "/auth/signin",
     // signOut: "/auth/signout",
     error: "/auth/error",
     // verifyRequest: "/auth/verify-request",
-    newUser: "/auth/sign-up" // Will disable the new account creation screen
+    newUser: "/auth/signup" // Will disable the new account creation screen
   },
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
