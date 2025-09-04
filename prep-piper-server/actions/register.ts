@@ -1,3 +1,4 @@
+// actions/register.ts
 "use server"
 
 import * as z from 'zod'
@@ -10,26 +11,43 @@ export const register = async (values: z.infer<typeof RegisterSchema>) => {
   const validatedFields = RegisterSchema.safeParse(values)
 
   if (!validatedFields.success) {
-    return { success: false, message: "Invalid fields!" }
+    return { 
+      success: false, 
+      message: "Invalid fields: " + validatedFields.error.issues.map(i => i.message).join(", ")
+    }
   }
 
   const { name, email, password } = validatedFields.data
 
-  const existingUser = await getUserByEmail(email)
+  try {
+    const existingUser = await getUserByEmail(email)
 
-  if (existingUser) {
-    return { success: false, message: "User already exists!" }
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10)
-
-  await db.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword
+    if (existingUser) {
+      return { success: false, message: "Email already registered!" }
     }
-  })
 
-  return { success: true, message: "User created successfully!" }
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    await db.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword
+      }
+    })
+
+    return { success: true, message: "Account created successfully!" }
+  } catch (error) {
+    console.error("Registration error:", error)
+    
+    if ((error as any)?.code === 'P2002') {
+      return { success: false, message: "Email already exists!" }
+    }
+    
+    if ((error as Error)?.message?.includes('DATABASE')) {
+      return { success: false, message: "Database connection error!" }
+    }
+
+    return { success: false, message: "Failed to create account. Please try again." }
+  }
 }

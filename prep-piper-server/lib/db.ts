@@ -20,6 +20,10 @@ try {
 } catch (error) {
   console.error('❌ Failed to import:', error)
 }
+// db.$connect()
+//   .then(() => console.log('✅ Database connected'))
+//   .catch((error:any) => console.error('❌ Database connection failed:', error))
+
 
 export { db };
 

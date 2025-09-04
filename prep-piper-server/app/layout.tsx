@@ -7,6 +7,8 @@ import { Suspense } from "react"
 import { SessionProvider } from "next-auth/react"
 import { auth } from "@/lib/auth"
 import "./globals.css"
+import { ThemeProvider } from "@/components/theme-provider"
+
 
 export const metadata: Metadata = {
   
@@ -30,10 +32,17 @@ export default async function RootLayout({
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>
         <SessionProvider session={session}>
-          <Suspense>
-            {children}
-          </Suspense>
-          <Analytics />
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <Suspense>
+              {children}
+            </Suspense>
+            <Analytics />
+          </ThemeProvider>
         </SessionProvider>
       </body>
     </html>

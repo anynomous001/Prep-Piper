@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { Mic, Menu, X, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
@@ -17,7 +17,14 @@ import {
 export function SiteHeader() {
   const [open, setOpen] = useState(false)
   const { data: session, status } = useSession()
-  const isLoading = status === "loading"
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  const isLoading = status === "loading" || !isClient
+  const isLoggedIn = !!session && status === "authenticated"
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" })
@@ -54,8 +61,11 @@ export function SiteHeader() {
           
           {isLoading ? (
             // Show loading state
-            <div className="h-9 w-20 animate-pulse rounded-md bg-foreground/10" />
-          ) : session ? (
+              <div className="flex items-center space-x-2">
+                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+              </div>
+          ) : isLoggedIn ? (
             // Show user menu when logged in
             <div className="flex items-center gap-2">
               <Button
