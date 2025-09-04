@@ -1,4 +1,3 @@
-// actions/login.ts
 "use server"
 
 import * as z from 'zod'
@@ -17,11 +16,16 @@ export const login = async (values: z.infer<typeof LoginSchema>) => {
   const { email, password } = validatedFields.data
 
   try {
-    await signIn("credentials", {
+    const result = await signIn("credentials", {
       email,
       password,
-      redirectTo: DEFAULT_LOGIN_REDIRECT,
+      redirect: false, // Important: Set to false to handle redirect manually
     })
+
+    if (result?.error) {
+      return { success: false, message: "Invalid credentials!" }
+    }
+
     return { success: true, message: "Login successful!" }
   } catch (error) {
     console.error("Login error:", error)
@@ -32,16 +36,9 @@ export const login = async (values: z.infer<typeof LoginSchema>) => {
           return { success: false, message: "Invalid email or password!" }
         case "CallbackRouteError":
           return { success: false, message: "Database connection error!" }
-        case "OAuthAccountNotLinked":
-          return { success: false, message: "OAuth account not linked!" }
         default:
           return { success: false, message: `Authentication error: ${error.type}` }
       }
-    }
-
-    // Check if it's a redirect (successful login)
-    if ((error as { message?: string })?.message?.includes('NEXT_REDIRECT')) {
-      return { success: true, message: "Login successful!" }
     }
 
     return { success: false, message: "An unexpected error occurred!" }

@@ -13,11 +13,15 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Github, Linkedin, Mail } from "lucide-react"
 import * as z from 'zod'
+import { useRouter } from 'next/navigation'
+
 
 export default function SignInPage() {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string>("")
   const [rememberMe, setRememberMe] = useState(false)
+
+  const router = useRouter()
 
   const form = useForm<z.infer<typeof LoginSchema>>({
     resolver: zodResolver(LoginSchema),
@@ -27,13 +31,17 @@ export default function SignInPage() {
     }
   })
 
+  
   const onSubmit = (values: z.infer<typeof LoginSchema>) => {
     setError("")
     startTransition(() => {
       login(values)
         .then((data) => {
-          if (!data.success) {
-            setError(data.message)
+          if (data?.success) {
+            router.push('/') // Redirect on success
+            router.refresh() // Refresh to update session state
+          } else {
+            setError(data?.message || "Something went wrong!")
           }
         })
         .catch(() => {
