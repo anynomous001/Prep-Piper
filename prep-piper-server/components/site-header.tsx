@@ -113,7 +113,7 @@ export function SiteHeader() {
                 asChild
                 className="bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-sm hover:from-teal-400 hover:to-blue-400"
               >
-                <Link href="/auth/register">Sign Up</Link>
+                <Link href="/auth/signup">Sign Up</Link>
               </Button>
             </>
           )}
