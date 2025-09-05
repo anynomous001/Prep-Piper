@@ -19,6 +19,7 @@ interface InterviewSession {
   difficulty: "beginner" | "intermediate" | "advanced"
   conversation_history: ConversationMessage[]
   is_complete: boolean
+  ended_early: boolean
 }
 
 function loadEnvironment(): boolean {
@@ -88,6 +89,7 @@ export class InterviewAgent extends EventEmitter {
         difficulty: "beginner",
         conversation_history: [],
         is_complete: false,
+        ended_early: false,
       }
 
       const firstTech = techStackStr.split(",")[0]?.trim() || techStackStr
@@ -193,6 +195,60 @@ Let's start with something fundamental. Can you explain what ${firstTech} is and
       return errorMessage
     }
   }
+
+/**
+   * UPDATE: Enhanced end interview early with contextual messages
+   */
+  endInterviewEarly(sessionId: string): string {
+    if (!(sessionId in this.sessions)) {
+      return "❌ Session not found!"
+    }
+
+    const session = this.sessions[sessionId]!
+    session.is_complete = true
+    session.ended_early = true
+
+    // UPDATE: Generate contextual early termination message based on progress
+    const message = this.generateEarlyTerminationMessage(sessionId)
+    
+    session.conversation_history.push({
+      role: "interviewer",
+      content: message,
+      timestamp: new Date(),
+    })
+
+    // UPDATE: Emit early termination event
+    this.emit("earlyTermination", {
+      sessionId,
+      message,
+      totalQuestions: session.question_count,
+      techStack: session.tech_stack,
+      position: session.position,
+      endedEarly: true,
+    })
+
+    console.log(`🛑 Interview ${sessionId} ended early - ${session.question_count}/${this.maxQuestions} questions completed`)
+    return message
+  }
+
+  /**
+   * UPDATE: Generate contextual early termination messages
+   */
+  private generateEarlyTerminationMessage(sessionId: string): string {
+    const session = this.sessions[sessionId]!
+    
+    // Generate contextual message based on interview progress
+    if (session.question_count === 0) {
+      return `I understand you need to end the interview before we could get started. Thank you for your time, and best of luck with your ${session.position} role search!`
+    } else if (session.question_count === 1) {
+      return `Thank you for the initial question we covered about ${session.tech_stack}. While we only got through one question, I appreciate the time you spent with me. Best wishes for your ${session.position} career journey!`
+    } else if (session.question_count < this.maxQuestions / 2) {
+      return `Thank you for the ${session.question_count} questions we covered regarding ${session.tech_stack}. While we didn't complete the full interview, I got some good insights into your technical background. I appreciate your time and wish you success in your ${session.position} role search!`
+    } else {
+      return `We made good progress covering ${session.question_count} out of ${this.maxQuestions} questions about ${session.tech_stack}. This gave me valuable insight into your technical expertise and problem-solving approach. Thank you for your time, and I wish you continued success in your ${session.position} career journey!`
+    }
+  }
+
 
   private async generateNextQuestion(sessionId: string): Promise<string> {
     try {
@@ -312,6 +368,7 @@ Type 'summary' for detailed conversation history.`
 ❓ Questions: ${session.question_count}/${this.maxQuestions}
 📈 Difficulty: ${session.difficulty.charAt(0).toUpperCase() + session.difficulty.slice(1)}
 ✅ Status: ${session.is_complete ? "Complete" : "In Progress"}
+⚠️ Early Termination: ${session.ended_early ? "Yes" : "No"}
 
 📝 **FULL CONVERSATION:**
 `
@@ -334,7 +391,7 @@ Type 'summary' for detailed conversation history.`
       // Create directory if it doesn't exist
       if (!fs.existsSync(interviewsDir)) {
         fs.mkdirSync(interviewsDir, { recursive: true })
-      }
+      } 
 
       const filename = path.join(interviewsDir, `${sessionId}.json`)
       const sessionData = JSON.stringify(this.sessions[sessionId], null, 2)

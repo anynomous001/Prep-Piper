@@ -62,6 +62,7 @@ export class VoiceInterviewServer {
         credentials: true,
       }),
     )
+
     this.app.use(express.json())
     this.app.use(express.static("public"))
   }
@@ -105,7 +106,7 @@ export class VoiceInterviewServer {
 
           // Initialize interview agent with our sessionId
           const [agentSessionId, question] = this.agent.startInterview(
-            data.techStack, 
+            data.techStack,
             data.position,
             sessionId
           )
@@ -125,6 +126,7 @@ export class VoiceInterviewServer {
       // Handle both voice and text transcripts
       socket.on("processTranscript", (data) => {
         const { sessionId, text } = data
+
         if (!sessionId || !text) {
           console.error("❌ Invalid transcript data")
           return
@@ -145,21 +147,42 @@ export class VoiceInterviewServer {
         session.lastActivityAt = new Date()
 
         console.log(`📝 Processing transcript for ${sessionId}:`, text)
-
+        
         // Process answer through interview agent
         this.agent.processAnswer(sessionId, text.trim())
       })
 
+      // UPDATE: Enhanced endInterview handler with early termination support
       socket.on("endInterview", (data) => {
-        const { sessionId } = data
+        const { sessionId, early } = data
+
         if (sessionId) {
+          if (early) {
+            // UPDATE: Handle early termination through agent
+            console.log(`🛑 Early interview termination requested for ${sessionId}`)
+            
+            // Let the agent generate contextual termination message
+            const terminationMessage = this.agent.endInterviewEarly(sessionId)
+            
+            // Send the agent's termination message back to client
+            this.io.to(sessionId).emit("interviewComplete", { 
+              sessionId, 
+              message: terminationMessage,
+              early: true 
+            })
+          } else {
+            // Normal completion
+            this.io.to(sessionId).emit("interviewComplete", { sessionId })
+            console.log(`🏁 Interview ${sessionId} completed normally`)
+          }
+          
           this.cleanupSession(sessionId)
-          this.io.to(sessionId).emit("interviewComplete", { sessionId })
         }
       })
 
       socket.on("disconnect", (reason) => {
         console.log(`🔌 Client disconnected: ${socket.id}, Reason: ${reason}`)
+        
         // Clean up after delay to allow for reconnection
         const sessionId = this.socketToSession.get(socket.id)
         if (sessionId) {
@@ -189,6 +212,16 @@ export class VoiceInterviewServer {
       console.log(`🏁 Interview completed by agent:`, data)
       this.io.to(data.sessionId).emit("interviewComplete", data)
     })
+
+    // UPDATE: Handle early termination events from agent
+    this.agent.on("earlyTermination", (data) => {
+      console.log(`🛑 Early termination handled by agent:`, data)
+      this.io.to(data.sessionId).emit("interviewComplete", {
+        sessionId: data.sessionId,
+        message: data.message,
+        early: true
+      })
+    })
   }
 
   private cleanupSession(sessionId: string): void {
@@ -197,6 +230,7 @@ export class VoiceInterviewServer {
     if (session) {
       this.socketToSession.delete(session.socketId)
     }
+
     this.activeSessions.delete(sessionId)
     this.io.socketsLeave(sessionId)
   }
@@ -211,9 +245,11 @@ export class VoiceInterviewServer {
 
   async stop(): Promise<void> {
     console.log("🛑 Shutting down server...")
+    
     for (const sessionId of this.activeSessions.keys()) {
       this.cleanupSession(sessionId)
     }
+
     this.server.close(() => {
       console.log("✅ Server stopped")
     })

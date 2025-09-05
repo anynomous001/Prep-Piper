@@ -12,6 +12,14 @@ export declare class InterviewAgent extends EventEmitter {
      * Process candidate answer and generate next question
      */
     processAnswer(sessionId: string, answer: string): Promise<string>;
+    /**
+       * UPDATE: Enhanced end interview early with contextual messages
+       */
+    endInterviewEarly(sessionId: string): string;
+    /**
+     * UPDATE: Generate contextual early termination messages
+     */
+    private generateEarlyTerminationMessage;
     private generateNextQuestion;
     private generateCompletionMessage;
     /**

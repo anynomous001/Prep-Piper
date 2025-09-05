@@ -20,6 +20,11 @@ const [transcript, setTranscript] = useState<TranscriptState>({
 })
  const [error, setError] = useState<string | null>(null)
 
+ // Live transcription buffer - separate from conversation history
+  const [liveTranscription, setLiveTranscription] = useState("")
+  const [candidateResponseBuffer, setCandidateResponseBuffer] = useState("")
+
+
   // Audio recording refs
   const [isRecording, setIsRecording] = useState(false)
   const mediaStreamRef = useRef<MediaStream | null>(null)
@@ -27,61 +32,91 @@ const [transcript, setTranscript] = useState<TranscriptState>({
   const audioContextRef = useRef<AudioContext | null>(null)
   const processorRef = useRef<ScriptProcessorNode | null>(null)
 
+
+const [elapsedSeconds, setElapsedSeconds] = useState(0)
+const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+// Helper to add message if it’s not already last
+const addInterviewerMessage = useCallback((text: string) => {
+  setTranscript((t) => {
+    const last = t.messages[t.messages.length - 1]
+    if (last?.role === "interviewer" && last.text === text) {
+      return t  // skip duplicate
+    }
+    return {
+      messages: [
+        ...t.messages,
+        { role: "interviewer", text, timestamp: new Date() }
+      ],
+      interim: ""
+    }
+  })
+}, [])
+
+
+
   // Socket event handlers
   useEffect(() => {
     if (!socket || !isConnected) return
 
     const onInterviewStarted = (payload: { sessionId: string; question: { questionText: string } }) => {
+      
       console.log("🎯 Interview started:", payload)
       setSessionId(payload.sessionId)
       setQuestion(payload.question.questionText)
       setQuestionIdx(1)
       setInterviewState("active")
       setError(null)
-
+      
+      addInterviewerMessage(payload.question.questionText)
 
 // Add the first question to transcript
-  setTranscript((t) => ({
-    messages: [
-      ...t.messages,
-      { role: "interviewer", text: payload.question.questionText, timestamp: new Date() }
-    ],
-    interim: ""
-  }))
+  // setTranscript((t) => ({
+  //   messages: [
+  //     ...t.messages,
+  //     { role: "interviewer", text: payload.question.questionText, timestamp: new Date() }
+  //   ],
+  //   interim: ""
+  // }))
 
 
     }
 
     const onNextQuestion = (payload: { question: string }) => {
       console.log("❓ Next question received:", payload.question)
+        addInterviewerMessage(question)
+
       setQuestion(payload.question)
       setQuestionIdx((i) => Math.min(i + 1, totalQuestions))
     // Add question to conversation history
-  setTranscript((t) => ({
-    messages: [
-      ...t.messages,
-      { role: "interviewer", text: payload.question, timestamp: new Date() }
-    ],
-    interim: ""
-  }))
+  // setTranscript((t) => ({
+  //   messages: [
+  //     ...t.messages,
+  //     { role: "interviewer", text: payload.question, timestamp: new Date() }
+  //   ],
+  //   interim: ""
+  // }))
   
       setInterviewState("active")
     }
 
     const onInterviewComplete = (payload: { message?: string }) => {
       console.log("🏁 Interview completed:", payload)
+       if (payload?.message) {
+    addInterviewerMessage(payload.message)
+  }
       setInterviewState("completed")
       cleanup()
       
-      if (payload?.message) {
-    setTranscript((t) => ({
-      messages: [
-        ...t.messages,
-        { role: "interviewer", text: `Interview Complete: ${payload.message}`, timestamp: new Date() }
-      ],
-      interim: ""
-    }))
-  }
+  //     if (payload?.message) {
+  //   setTranscript((t) => ({
+  //     messages: [
+  //       ...t.messages,
+  //       { role: "interviewer", text: `Interview Complete: ${payload.message}`, timestamp: new Date() }
+  //     ],
+  //     interim: ""
+  //   }))
+  // }
     }
 
     const onError = (payload: { message?: string; error?: string }) => {
@@ -107,8 +142,9 @@ const [transcript, setTranscript] = useState<TranscriptState>({
   }, [socket, isConnected])
 
   // Cleanup function
-  const cleanup = useCallback(() => {
-    console.log('🧹 Cleaning up media resources...')
+ // UPDATE: New media-only cleanup function - doesn't clear response buffer
+  const cleanupMediaOnly = useCallback(() => {
+    console.log('🧹 Cleaning up media resources only...')
     
     // Stop Deepgram connection
     if (deepgramConnectionRef.current) {
@@ -119,19 +155,19 @@ const [transcript, setTranscript] = useState<TranscriptState>({
         console.log('Deepgram connection already closed')
       }
     }
-    
+
     // Stop audio processor
     if (processorRef.current) {
       processorRef.current.disconnect()
       processorRef.current = null
     }
-    
+
     // Stop audio context
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close()
       audioContextRef.current = null
     }
-    
+
     // Stop media stream tracks
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => {
@@ -140,9 +176,25 @@ const [transcript, setTranscript] = useState<TranscriptState>({
       })
       mediaStreamRef.current = null
     }
-    
+
     setIsRecording(false)
+    // UPDATE: Don't clear response buffer or live transcription here
+    // User might still want to submit the buffered response
   }, [])
+
+  // UPDATE: Full cleanup function - clears everything including response buffer
+  const cleanup = useCallback(() => {
+    console.log('🧹 Cleaning up all resources...')
+    
+    cleanupMediaOnly()
+     if (timerRef.current) {
+    clearInterval(timerRef.current)
+    timerRef.current = null
+  }
+    // UPDATE: Clear response buffer and live transcription
+    setCandidateResponseBuffer("")
+    setLiveTranscription("")
+  }, [cleanupMediaOnly])
 
   // Start interview
   const startInterview = useCallback((selection: TechSelection) => {
@@ -154,6 +206,12 @@ const [transcript, setTranscript] = useState<TranscriptState>({
     console.log("🚀 Starting interview with selection:", selection)
     setInterviewState("connecting")
     setError(null)
+
+     setElapsedSeconds(0)
+  if (timerRef.current) clearInterval(timerRef.current)
+  timerRef.current = setInterval(() => {
+    setElapsedSeconds((s) => s + 1)
+  }, 1000)
     
     // Emit startInterview event
     socket.emit("startInterview", {
@@ -211,6 +269,8 @@ const [transcript, setTranscript] = useState<TranscriptState>({
         encoding: "linear16",
         sample_rate: 16000,
         channels: 1,
+        utterance_end_ms: 1500, // 1.5 seconds of silence to finalize
+        endpointing: 300, // 300ms to detect end of speech
       })
 
       deepgramConnectionRef.current = dgConnection
@@ -228,20 +288,19 @@ const [transcript, setTranscript] = useState<TranscriptState>({
        if (data.channel?.alternatives?.[0]?.transcript) {
           const text = data.channel.alternatives[0].transcript.trim()
          if (data.is_final) {
-           console.log('📝 Final transcript:', text)
-          // Buffer final STT locally—do NOT send to agent yet
-  // Add candidate response to conversation
-      setTranscript((t) => ({
-        messages: [
-          ...t.messages,
-          { role: "candidate", text: text.trim(), timestamp: new Date() }
-        ],
-        interim: ""
-      }))
-          setInterviewState("waiting_for_next")
+           console.log('📝 Final transcript chunk:', text)
+          // Add to buffer
+              setCandidateResponseBuffer(prev => {
+                const newBuffer = prev ? `${prev} ${text}` : text
+                console.log('📦 Updated buffer:', newBuffer)
+                return newBuffer
+              })
+
+              // Clear live transcription since this is final
+              setLiveTranscription("")
          } else {
-          setTranscript((t) => ({ ...t, interim: text }))
-          setInterviewState("processing")
+                        setLiveTranscription(text)
+            console.log('💬 Interim transcript chunk:', text)
         }
     }
       })
@@ -293,7 +352,7 @@ const [transcript, setTranscript] = useState<TranscriptState>({
       console.error("Failed to start recording:", e)
       setError(`Failed to start recording: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
-  }, [interviewState, sessionId, socket])
+  }, [interviewState, sessionId])
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -303,76 +362,50 @@ const [transcript, setTranscript] = useState<TranscriptState>({
     }
 
     console.log('🛑 Stopping recording...')
+    cleanupMediaOnly()
     
-    // Stop Deepgram connection
-    if (deepgramConnectionRef.current) {
-      try {
-        deepgramConnectionRef.current.finish()
-        deepgramConnectionRef.current = null
-      } catch (e) {
-        console.log('Deepgram connection already closed')
-      }
+ console.log('✅ Recording stopped - response ready for manual submission')
+    console.log('📦 Buffered response:', candidateResponseBuffer)
+  }, [isRecording, candidateResponseBuffer, cleanupMediaOnly])
+
+  // UPDATE: Completely rewritten manual voice response submission
+  const submitVoiceResponse = useCallback(() => {
+    if (!candidateResponseBuffer.trim()) {
+      console.warn("No response to submit")
+      setError("No response recorded. Please record your answer first.")
+      return
     }
-    
-    // Stop audio processing
-    if (processorRef.current) {
-      processorRef.current.disconnect()
-      processorRef.current = null
+
+    if (!socket || !isConnected || !sessionId) {
+      setError("Not connected to server")
+      return
     }
+
+    console.log("📝 Manually submitting voice response:", candidateResponseBuffer)
     
-    // Close audio context
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-    
-    // Stop media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop())
-      mediaStreamRef.current = null
-    }
-    
-    setIsRecording(false)
-    console.log('✅ Recording stopped')
-  }, [isRecording])
+    // Add complete response to conversation history
+    setTranscript((t) => ({
+      messages: [
+        ...t.messages,
+        { role: "candidate", text: candidateResponseBuffer.trim(), timestamp: new Date() }
+      ],
+      interim: ""
+    }))
 
-  // Submit voice response (finalize current recording)
-const submitVoiceResponse = useCallback(() => {
-  if (!sessionId || !socket || !isConnected) {
-    console.warn("Cannot submit voice response—missing session or socket")
-    return
-  }
-  // Gather the last final transcript item (or interim if needed)
-//   const last = transcript.final[transcript.final.length - 1] || transcript.interim
-//   if (!last) {
-//     console.warn("No transcript available to submit")
-//     return
-//   }
+    // Submit to agent
+    socket.emit("processTranscript", {
+      sessionId,
+      text: candidateResponseBuffer.trim()
+    })
 
-//   console.log("🔊 Submitting voice response to agent:", last)
-//   socket.emit("processTranscript", {
-//     sessionId,
-//     text: last.replace(/^You:\s*/, "")  // strip the prefix
-//   })
+    setInterviewState("processing")
 
- const candidateMessages = transcript.messages.filter(m => m.role === "candidate")
-  const lastMessage = candidateMessages[candidateMessages.length - 1]
-  
-  if (!lastMessage) {
-    console.warn("No candidate response available to submit")
-    return
-  }
+    // Clear buffer after successful submission
+    setCandidateResponseBuffer("")
+    setLiveTranscription("")
 
-  console.log("🔊 Submitting voice response to agent:", lastMessage.text)
-  socket.emit("processTranscript", {
-    sessionId,
-    text: lastMessage.text
-  })
-
-  setInterviewState("processing")
-  // Optionally clear interim and final buffer if desired
-//   setTranscript({ interim: "", final: [] })
-}, [sessionId, socket, isConnected,transcript.messages])
+    console.log("✅ Voice response submitted successfully")
+  }, [candidateResponseBuffer, sessionId, socket, isConnected])
 
 
   // Submit text response
@@ -405,12 +438,17 @@ const submitVoiceResponse = useCallback(() => {
   }, [socket, isConnected, sessionId])
 
   // End interview
-  const endInterview = useCallback(() => {
+    const endInterview = useCallback(() => {
     if (sessionId && socket && isConnected) {
-      socket.emit("endInterview", { sessionId })
+      console.log("🛑 Ending interview early")
+      socket.emit("endInterview", { sessionId, early: true })
     }
+
     setInterviewState("completed")
     cleanup()
+
+    // UPDATE: Remove frontend completion message
+    // Agent will send contextual completion message through onInterviewComplete event
   }, [sessionId, socket, isConnected, cleanup])
 
   // Cleanup on unmount
@@ -427,9 +465,12 @@ const submitVoiceResponse = useCallback(() => {
     questionIdx,
     totalQuestions,
     transcript,
+    liveTranscription, // Separate live transcription display
+    candidateResponseBuffer, // UPDATE: Expose buffer to UI for display
     isRecording,
     error,
     isConnected,
+    elapsedSeconds,
 
     // Actions
     startInterview,

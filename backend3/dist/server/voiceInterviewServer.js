@@ -117,11 +117,28 @@ class VoiceInterviewServer {
                 // Process answer through interview agent
                 this.agent.processAnswer(sessionId, text.trim());
             });
+            // UPDATE: Enhanced endInterview handler with early termination support
             socket.on("endInterview", (data) => {
-                const { sessionId } = data;
+                const { sessionId, early } = data;
                 if (sessionId) {
+                    if (early) {
+                        // UPDATE: Handle early termination through agent
+                        console.log(`🛑 Early interview termination requested for ${sessionId}`);
+                        // Let the agent generate contextual termination message
+                        const terminationMessage = this.agent.endInterviewEarly(sessionId);
+                        // Send the agent's termination message back to client
+                        this.io.to(sessionId).emit("interviewComplete", {
+                            sessionId,
+                            message: terminationMessage,
+                            early: true
+                        });
+                    }
+                    else {
+                        // Normal completion
+                        this.io.to(sessionId).emit("interviewComplete", { sessionId });
+                        console.log(`🏁 Interview ${sessionId} completed normally`);
+                    }
                     this.cleanupSession(sessionId);
-                    this.io.to(sessionId).emit("interviewComplete", { sessionId });
                 }
             });
             socket.on("disconnect", (reason) => {
@@ -151,6 +168,15 @@ class VoiceInterviewServer {
         this.agent.on("interviewComplete", (data) => {
             console.log(`🏁 Interview completed by agent:`, data);
             this.io.to(data.sessionId).emit("interviewComplete", data);
+        });
+        // UPDATE: Handle early termination events from agent
+        this.agent.on("earlyTermination", (data) => {
+            console.log(`🛑 Early termination handled by agent:`, data);
+            this.io.to(data.sessionId).emit("interviewComplete", {
+                sessionId: data.sessionId,
+                message: data.message,
+                early: true
+            });
         });
     }
     cleanupSession(sessionId) {
