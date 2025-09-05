@@ -33,7 +33,7 @@ export default function Page() {
       <div className="pointer-events-none absolute inset-0 bg-white [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)] dark:bg-black" />
 
       {/* Your landing content */}
-      <div className="relative z-10 max-w-6xl px-6 py-20 text-center">
+      <div className="relative z-10 max-w-8xl px-6 py-20 text-center">
         {/* <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 sm:text-6xl">
           Welcome to Prep Piper
         </h1>

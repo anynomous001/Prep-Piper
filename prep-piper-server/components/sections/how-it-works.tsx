@@ -12,13 +12,13 @@ export function HowItWorks() {
   return (
     <section id="how" aria-labelledby="how-heading" className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 id="how-heading" className="text-balance text-3xl font-semibold md:text-4xl">
+        <h2 id="how-heading" className="text-balance text-3xl font-semibold md:text-5xl text-teal-400">
           How it works
         </h2>
         <p className="mt-3 text-foreground/80">Three simple steps to accelerate your interview prep.</p>
       </div>
 
-      <ol className="mx-auto mt-10 max-w-3xl">
+      <ol className="mx-auto mt-10 max-w-3xl space-y-8">
         {steps.map((s, idx) => (
           <motion.li
             key={s.title}
