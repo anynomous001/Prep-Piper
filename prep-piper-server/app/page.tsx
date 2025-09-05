@@ -7,6 +7,8 @@ import { Pricing } from "@/components/sections/pricing"
 import { Reviews } from "@/components/sections/reviews"
 import { DemoPreview } from "@/components/sections/demo-preview"
 import { SiteFooter } from "@/components/site-footer"
+import { cn } from "@/lib/utils"
+import { CTASection } from "@/components/sections/cta"
 
 export const metadata: Metadata = {
   title: "Prep Piper — Master Technical Interviews with AI",
@@ -23,6 +25,7 @@ export default function Page() {
         <HowItWorks />
         <Pricing />
         <Reviews />
+        <CTASection />
         <DemoPreview />
       </main>
       <SiteFooter />

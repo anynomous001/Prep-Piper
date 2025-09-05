@@ -6,6 +6,8 @@ import { Mic, Menu, X, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,9 +22,15 @@ export function SiteHeader() {
  
   const isLoading = status === "loading"
   const isLoggedIn = !!session?.user
+  const router = useRouter()
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: "/" })
+  const handleLogout = async () => {
+    // Prevent default redirect
+    await signOut({ redirect: false })
+    // Force client to clear NextAuth cache
+    localStorage.clear()
+    // Now navigate back to home or login page
+    router.push("/auth/signin")
   }
 
   return (
@@ -99,7 +107,7 @@ export function SiteHeader() {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={handleSignOut}
+                    onClick={handleLogout}
                     className="cursor-pointer text-red-600 focus:text-red-600"
                   >
                     <LogOut className="mr-2 h-4 w-4" />

@@ -33,10 +33,15 @@ export function Hero() {
           viewport={{ once: true, amount: 0.6 }}
           transition={{ duration: 0.6 }}
         >
-          Master Technical Interviews with AI
-        </motion.h1>
+<span className="bg-gradient-to-r from-teal-400 via-cyan-300 to-blue-400 bg-clip-text text-transparent">
+            Master Technical
+          </span>
+          <br />
+          <span className="text-gray-900 dark:text-white">
+            Interviews with AI
+          </span>        </motion.h1>
         <motion.p
-          className="text-pretty mt-4 text-base text-foreground/80 md:text-lg"
+          className="text-pretty mt-4 text-base text-foreground/80 md:text-xl"
           initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.6 }}
@@ -56,13 +61,13 @@ export function Hero() {
           <Link href="/tech-selection">
           <Button
           
-            className="bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-lg hover:from-teal-400 hover:to-blue-400 hover:cursor-pointer"
+            className="bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-lg hover:from-teal-400 hover:to-blue-400 px-8 py-6 text-lg hover:cursor-pointer"
             size="lg"
           >
             Start Free Practice
           </Button>
           </Link>
-          <Button variant="outline" size="lg">
+          <Button className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:scale-105 transition-all duration-300 px-8 py-6 text-lg hover:cursor-pointer" variant="outline" size="lg">
             Watch Demo
           </Button>
         </motion.div>

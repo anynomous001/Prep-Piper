@@ -20,6 +20,8 @@ model User {
   emailVerified DateTime? @map("email_verified")
   role          UserRole  @default(USER)
   image         String?
+  approved  Boolean @default(false)
+
   accounts      Account[]
 
   @@map("users")

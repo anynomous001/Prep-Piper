@@ -2,35 +2,46 @@
 
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Mic, Bot, BarChart3, Target, Smartphone, TrendingUp } from "lucide-react"
+import { Mic, Brain, Target, BarChart3, MessageSquare, Zap } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 const features = [
   {
-    title: "Voice & Text Practice",
-    description: "Practice speaking or typing your answers with real-time transcription.",
-    icon: Mic,
+    icon: <Mic className="w-8 h-8" />,
+    title: "Voice-Powered Interviews",
+    description: "Practice with natural speech recognition and real-time transcription for authentic interview experience.",
+    badge: "Core Feature"
   },
   {
-    title: "AI-Powered Questions",
-    description: "Tailored questions based on your target role and tech stack.",
-    icon: Bot,
+    icon: <Brain className="w-8 h-8" />,
+    title: "AI-Powered Feedback",
+    description: "Get instant, detailed feedback on your technical explanations and problem-solving approach.",
+    badge: "Smart AI"
   },
   {
-    title: "Real-Time Feedback",
-    description: "Instant analysis of your responses, code quality, and communication.",
-    icon: BarChart3,
+    icon: <Target className="w-8 h-8" />,
+    title: "Personalized Questions",
+    description: "Questions adapted to your skill level, tech stack, and target companies for focused preparation.",
+    badge: "Adaptive"
   },
   {
-    title: "Personalized Learning",
-    description: "Adaptive difficulty based on your performance and experience level.",
-    icon: Target,
+    icon: <BarChart3 className="w-8 h-8" />,
+    title: "Progress Tracking",
+    description: "Monitor your improvement with detailed analytics and performance insights over time.",
+    badge: "Analytics"
   },
   {
-    title: "Multi-Modal Support",
-    description: "Practice on any device with voice, text, or hybrid modes.",
-    icon: Smartphone,
+    icon: <MessageSquare className="w-8 h-8" />,
+    title: "Interactive Conversations",
+    description: "Engage in natural back-and-forth discussions just like real technical interviews.",
+    badge: "Dynamic"
   },
-  { title: "Progress Tracking", description: "Detailed analytics and improvement suggestions.", icon: TrendingUp },
+  {
+    icon: <Zap className="w-8 h-8" />,
+    title: "Instant Setup",
+    description: "Start practicing immediately with no complex setup or installation required.",
+    badge: "Quick Start"
+  }
 ]
 
 export function Features() {
@@ -52,19 +63,34 @@ export function Features() {
         viewport={{ once: true, amount: 0.2 }}
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
       >
-        {features.map((f) => (
-          <motion.div key={f.title} variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}>
-            <Card className="group h-full border-border/60 bg-background/60 backdrop-blur transition hover:border-teal-500/50 hover:shadow-[0_0_0_1px_rgba(20,184,166,.35)]">
-              <CardHeader>
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-foreground/10 ring-1 ring-inset ring-border group-hover:ring-teal-500/50 transition">
-                  <f.icon className="h-5 w-5 text-teal-400" aria-hidden="true" />
+        {features.map((feature, index) => (
+            <Card 
+              key={index}
+              className="bg-gray-900/50 border-gray-800 hover:bg-gray-900/70 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-teal-400/10 group"
+            >
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-teal-400/10 rounded-lg text-teal-400 group-hover:bg-teal-400/20 transition-colors">
+                    {feature.icon}
+                  </div>
+                  <Badge 
+                    variant="secondary"
+                    className="bg-gray-800 text-gray-300 border-gray-700 text-xs"
+                  >
+                    {feature.badge}
+                  </Badge>
                 </div>
-                <CardTitle className="text-lg">{f.title}</CardTitle>
+                <CardTitle className="text-xl text-white group-hover:text-teal-400 transition-colors">
+                  {feature.title}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-foreground/80">{f.description}</CardContent>
+              <CardContent>
+                <p className="text-gray-300 leading-relaxed">
+                  {feature.description}
+                </p>
+              </CardContent>
             </Card>
-          </motion.div>
-        ))}
+          ))}
       </motion.div>
     </section>
   )

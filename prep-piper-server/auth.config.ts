@@ -28,7 +28,20 @@ export default {
 
           const passwordMatch = await bcrypt.compare(password, user.password)
 
-          if (passwordMatch) return user
+           if (!passwordMatch) {
+         return null
+        }
+
+        if (!user.approved) {
+          const error = new Error("Your account is pending approval.")
+          error.name = "PendingApproval"
+          throw error
+        }
+
+    // only after all checks pass:
+    return user
+  
+
         }
 
         return null
