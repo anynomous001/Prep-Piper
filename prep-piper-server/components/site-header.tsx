@@ -17,14 +17,9 @@ import {
 export function SiteHeader() {
   const [open, setOpen] = useState(false)
   const { data: session, status } = useSession()
-  const [isClient, setIsClient] = useState(false)
-
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  const isLoading = status === "loading" || !isClient
-  const isLoggedIn = !!session && status === "authenticated"
+ 
+  const isLoading = status === "loading"
+  const isLoggedIn = !!session?.user
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" })
@@ -81,13 +76,13 @@ export function SiteHeader() {
                   <Button variant="ghost" className="flex items-center gap-2 px-3">
                     <User className="h-4 w-4" />
                     <span className="max-w-32 truncate">
-                      {session.user?.name || session.user?.email || "User"}
+                      {session?.user?.name || session?.user?.email || "User"}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <div className="px-2 py-1.5 text-sm text-foreground/70">
-                    {session.user?.email}
+                    {session?.user?.email}
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
