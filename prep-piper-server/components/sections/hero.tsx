@@ -27,7 +27,7 @@ export function Hero() {
       <div className="mx-auto max-w-3xl text-center">
         <motion.h1
           id="hero-heading"
-          className="text-balance text-4xl font-bold tracking-tight md:text-5xl"
+          className="text-4xl font-bold text-gray-900 dark:text-gray-100 sm:text-6xl"
           initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.6 }}
