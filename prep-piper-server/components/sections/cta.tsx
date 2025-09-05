@@ -4,9 +4,11 @@
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles } from "lucide-react"
 import Link from "next/link"
+import { Container } from "../layout/container"
 
 export function CTASection() {
   return (
+      <Container>
     <section className="py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto text-center">
         {/* Background Card */}
@@ -75,5 +77,6 @@ export function CTASection() {
         </div>
       </div>
     </section>
+    </Container>
   )
 }

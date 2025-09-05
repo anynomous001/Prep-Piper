@@ -5,6 +5,7 @@
 
 import { motion } from "framer-motion"
 import React from "react"
+import { Container } from "../layout/container"
 
 const steps = [
   { title: "Choose Your Focus", text: "Select role, tech stack, and experience level." },
@@ -14,6 +15,7 @@ const steps = [
 
 export function HowItWorks() {
   return (
+    <Container>
     <section id="how" className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20 ">
       <div className="max-w-2xl mx-auto text-center">
         <h2 className="text-4xl font-semibold text-teal-400">How it works</h2>
@@ -41,5 +43,6 @@ export function HowItWorks() {
         ))}
       </ol>
     </section>
+    </Container>
   )
 }

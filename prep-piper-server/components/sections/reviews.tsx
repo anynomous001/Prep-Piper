@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Star } from "lucide-react"
+import { Container } from "../layout/container"
 
 const reviews = [
   {
@@ -47,6 +48,7 @@ const companyLogos = [
 
 export function Reviews() {
   return (
+    <Container>
     <section className="py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
@@ -122,5 +124,6 @@ export function Reviews() {
         </div>
       </div>
     </section>
+    </Container>
   )
 }

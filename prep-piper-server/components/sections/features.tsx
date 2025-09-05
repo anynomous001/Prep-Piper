@@ -4,6 +4,8 @@ import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Mic, Brain, Target, BarChart3, MessageSquare, Zap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Container } from "../layout/container"
+
 
 const features = [
   {
@@ -46,6 +48,7 @@ const features = [
 
 export function Features() {
   return (
+    <Container>
     <section id="features" aria-labelledby="features-heading" className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
       <div className="mx-auto max-w-2xl text-center">
         <h2 id="features-heading" className="text-balance text-3xl font-semibold md:text-6xl text-teal-400">
@@ -93,5 +96,6 @@ export function Features() {
           ))}
       </motion.div>
     </section>
+    </Container>
   )
 }

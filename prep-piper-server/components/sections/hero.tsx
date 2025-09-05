@@ -4,9 +4,11 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Code2, Waves, MessageSquareMore } from "lucide-react"
 import Link from "next/link"
+import { Container } from "../layout/container"
 
 export function Hero() {
   return (
+    <Container>
     <section
       aria-labelledby="hero-heading"
       className="relative mx-auto max-w-6xl px-4 pb-12 pt-10 md:px-6 md:pb-20 md:pt-16"
@@ -153,5 +155,6 @@ export function Hero() {
         </div>
       </motion.div>
     </section>
+    </Container>
   )
 }

@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <div className="min-h-dvh ">
+    <div className="min-h-dvh w-full overflow-x-hidden ">
       <SiteHeader />
       <main className="relative flex min-h-screen w-full items-center justify-center bg-white dark:bg-black">
       {/* Grid lines */}

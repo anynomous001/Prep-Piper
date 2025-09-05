@@ -27,7 +27,7 @@ export function SiteHeader() {
   const handleLogout = async () => {
     // Prevent default redirect
     await signOut({ redirect: false })
-    // Force client to clear NextAuth cache
+    // Force client refresh of session state
     localStorage.clear()
     // Now navigate back to home or login page
     router.push("/auth/signin")
@@ -202,7 +202,7 @@ export function SiteHeader() {
                     variant="ghost"
                     onClick={() => {
                       setOpen(false)
-                      handleSignOut()
+                      handleLogout()
                     }}
                     className="w-full justify-start gap-2 text-red-600 hover:text-red-600 hover:bg-red-50"
                   >
