@@ -48,7 +48,7 @@ export function Features() {
   return (
     <section id="features" aria-labelledby="features-heading" className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 id="features-heading" className="text-balance text-3xl font-semibold md:text-4xl">
+        <h2 id="features-heading" className="text-balance text-3xl font-semibold md:text-6xl text-teal-400">
           Everything you need to practice effectively
         </h2>
         <p className="mt-3 text-foreground/80">
@@ -57,7 +57,7 @@ export function Features() {
       </div>
 
       <motion.div
-        className="mt-8 grid gap-4 sm:grid-cols-2 md:mt-10 md:grid-cols-3"
+        className="mt-8 grid gap-4 sm:grid-cols-2 md:mt-12 md:grid-cols-3"
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.2 }}
