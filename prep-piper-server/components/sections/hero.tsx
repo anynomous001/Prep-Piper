@@ -24,7 +24,7 @@ export function Hero() {
         />
       </div>
 
-      <div className="mx-auto max-w-3xl text-center">
+      <div className="mx-auto max-w-4xl text-center">
         <motion.h1
           id="hero-heading"
           className="text-4xl font-bold text-gray-900 dark:text-gray-100 sm:text-6xl"
@@ -33,13 +33,18 @@ export function Hero() {
           viewport={{ once: true, amount: 0.6 }}
           transition={{ duration: 0.6 }}
         >
-<span className="bg-gradient-to-r from-teal-400 via-cyan-300 to-blue-400 bg-clip-text text-transparent">
+<span className="text-gray-900 dark:text-white">
             Master Technical
           </span>
           <br />
           <span className="text-gray-900 dark:text-white">
-            Interviews with AI
-          </span>        </motion.h1>
+            Interviews with 
+          </span>      
+          <span className="ml-2 bg-gradient-to-r from-teal-400 via-cyan-300 to-blue-400 bg-clip-text text-transparent">
+             Prep Piper
+          </span>
+          
+            </motion.h1>
         <motion.p
           className="text-pretty mt-4 text-base text-foreground/80 md:text-xl"
           initial={{ opacity: 0, y: 12 }}
@@ -52,7 +57,7 @@ export function Hero() {
         </motion.p>
 
         <motion.div
-          className="mt-6 flex items-center justify-center gap-3"
+          className="mt-6 flex-col sm:flex-row items-center justify-center space-x-3"
           initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.6 }}
@@ -74,7 +79,7 @@ export function Hero() {
       </div>
 
       <motion.div
-        className="mt-10 grid gap-4 md:mt-14 md:grid-cols-2"
+        className="mt-10 grid gap-4 md:mt-14 md:grid-cols-2 w-[90%] mx-auto"
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.25 }}
