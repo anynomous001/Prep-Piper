@@ -55,7 +55,7 @@ export default function PendingApprovalPage() {
           <div className="pt-4 border-t">
             <p className="text-xs text-gray-500">
               Need help? Contact us at{" "}
-              <a href="mailto:support@preppiper.com" className="text-blue-500 hover:underline">
+              <a href="https://x.com/Pritamchak001" className="text-blue-500 hover:underline">
                 support@preppiper.com
               </a>
             </p>
