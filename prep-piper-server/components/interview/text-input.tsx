@@ -13,9 +13,10 @@ const DRAFT_KEY = "prep-piper:text-draft"
 interface TextInputProps {
   disabled?: boolean
   onSubmit: (text: string) => void
+  placeholder?: string
 }
 
-export function TextInput({ disabled, onSubmit }: TextInputProps) {
+export function TextInput({ disabled, onSubmit, placeholder }: TextInputProps) {
   const [value, setValue] = useState("")
   const count = value.length
   const isValid = !disabled && count >= MIN_CHARS && count <= MAX_CHARS

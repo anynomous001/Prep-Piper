@@ -84,7 +84,7 @@ const addInterviewerMessage = useCallback((text: string) => {
 
     const onNextQuestion = (payload: { question: string }) => {
       console.log("❓ Next question received:", payload.question)
-        addInterviewerMessage(question)
+  addInterviewerMessage(payload.question) // ← This was using 'question' (old value)
 
       setQuestion(payload.question)
       setQuestionIdx((i) => Math.min(i + 1, totalQuestions))
