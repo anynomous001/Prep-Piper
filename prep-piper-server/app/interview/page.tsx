@@ -80,7 +80,7 @@ export default function InterviewPage() {
 
   return (
     <ConnectionGuard>
-      <div className="min-h-screen bg-black text-white overflow-x-hidden">
+      <div className=" bg-black text-white overflow-x-hidden relative">
         {/* Grid Background */}
         <div className="absolute inset-0 [background-size:40px_40px] [background-image:linear-gradient(to_right,#262626_1px,transparent_1px),linear-gradient(to_bottom,#262626_1px,transparent_1px)]" />
         

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardContent, CardFooter, CardTitle } from "@/components/ui/card"
 import React from "react"
 import { cn } from "@/lib/utils"
+import { Container } from "../layout/container"
 
 const tiers = [
   {
@@ -36,6 +37,7 @@ const tiers = [
 
 export function Pricing() {
   return (
+    <Container>
     <section id="pricing" className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20 ">
       <div className="mx-auto max-w-2xl text-center mb-12">
         <h2 className="text-4xl font-bold text-white">Simple, transparent pricing</h2>
@@ -55,7 +57,7 @@ export function Pricing() {
             className={cn(
               "relative backdrop-blur bg-gray-900/50 border border-gray-800 transition",
               t.highlight
-                ? "ring-1 ring-inset ring-teal-500/40 hover:scale-105 shadow-xl shadow-teal-500/25"
+                ? "ring-1 ring-inset ring-teal-500/40 hover:scale-105 shadow-xl shadow-teal-500/25 "
                 : "hover:scale-105 shadow-lg shadow-black/20"
             )}
           >
@@ -85,7 +87,7 @@ export function Pricing() {
                 className={cn(
                   "w-full py-3 text-lg transition transform",
                   t.highlight
-                    ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-400 hover:to-cyan-400"
+                    ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-400 hover:to-cyan-400 "
                     : "border border-gray-600 bg-slate-700 text-white hover:bg-gray-800 hover:text-teal-400"
                 )}
               >
@@ -96,5 +98,6 @@ export function Pricing() {
         ))}
       </motion.div>
     </section>
+    </Container>
   )
 }
