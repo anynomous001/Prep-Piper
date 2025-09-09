@@ -50,3 +50,129 @@ export const demoInterviewData  = {
     }
   ]
 };
+
+
+interface EvaluationData {
+  success: boolean;
+  evaluation_id: string;
+  duration_ms: number;
+  timestamp: string;
+  data: {
+    overall_score: number;
+    recommendation: "Strong Hire" | "Hire" | "No Hire" | "Strong No Hire";
+    key_strengths: string[];
+    critical_weaknesses: string[];
+    development_areas: string[];
+    technical_skills: Array<{
+      skill_name: string;
+      proficiency_level: "beginner" | "intermediate" | "advanced" | "expert";
+      evidence: string[];
+      confidence: "low" | "medium" | "high" | "very_high";
+      comments: string;
+    }>;
+    problem_solving_instances: Array<{
+      problem_statement: string;
+      solution: string;
+      approach_quality: number;
+      solution_effectiveness: number;
+      reasoning_clarity: number;
+    }>;
+    position_evaluated_for: string;
+    evaluation_timestamp: string;
+    current_step: string;
+    errors: string[];
+  };
+}
+
+// Demo data
+const demoData: EvaluationData = {
+  "success": true,
+  "evaluation_id": "unknown",
+  "duration_ms": 1858,
+  "timestamp": "2025-09-09T11:48:29.135Z",
+  "data": {
+    "overall_score": 3.5,
+    "recommendation": "No Hire",
+    "key_strengths": ["Basic understanding of responsive design", "Recognized Next.js as related to React"],
+    "critical_weaknesses": ["Limited understanding of React concepts", "Lacked understanding of Next.js rendering strategies", "Limited knowledge of TypeScript features"],
+    "development_areas": ["Improve React skills", "Learn TypeScript features", "Understand Next.js rendering strategies", "Enhance problem-solving approach"],
+    "technical_skills": [
+      {
+        "skill_name": "JavaScript",
+        "proficiency_level": "beginner",
+        "evidence": ["Mentioned React hooks"],
+        "confidence": "low",
+        "comments": "Lacked clarity in explaining React hooks"
+      },
+      {
+        "skill_name": "React",
+        "proficiency_level": "beginner",
+        "evidence": ["Mentioned React hooks"],
+        "confidence": "low",
+        "comments": "Limited understanding of React concepts"
+      },
+      {
+        "skill_name": "TypeScript",
+        "proficiency_level": "beginner",
+        "evidence": ["Recognized TypeScript as related to JavaScript"],
+        "confidence": "low",
+        "comments": "Showed minimal understanding of TypeScript"
+      },
+      {
+        "skill_name": "CSS",
+        "proficiency_level": "beginner",
+        "evidence": ["Mentioned responsive design"],
+        "confidence": "low",
+        "comments": "Basic understanding of responsive design"
+      },
+      {
+        "skill_name": "Next.js",
+        "proficiency_level": "beginner",
+        "evidence": ["Recognized Next.js as related to React"],
+        "confidence": "low",
+        "comments": "Lacked understanding of Next.js rendering strategies"
+      }
+    ],
+    "problem_solving_instances": [
+      {
+        "problem_statement": "Explain React hooks",
+        "solution": "Described as functions",
+        "approach_quality": 2,
+        "solution_effectiveness": 2,
+        "reasoning_clarity": 2
+      },
+      {
+        "problem_statement": "Improve performance",
+        "solution": "Make the code faster",
+        "approach_quality": 1,
+        "solution_effectiveness": 1,
+        "reasoning_clarity": 1
+      },
+      {
+        "problem_statement": "Explain TypeScript",
+        "solution": "TypeScript is just JavaScript but harder",
+        "approach_quality": 2,
+        "solution_effectiveness": 2,
+        "reasoning_clarity": 2
+      },
+      {
+        "problem_statement": "Handle responsive design",
+        "solution": "Websites work on phones",
+        "approach_quality": 2,
+        "solution_effectiveness": 2,
+        "reasoning_clarity": 2
+      },
+      {
+        "problem_statement": "Explain Next.js rendering strategies",
+        "solution": "Next.js makes websites faster",
+        "approach_quality": 2,
+        "solution_effectiveness": 2,
+        "reasoning_clarity": 2
+      }
+    ],
+    "position_evaluated_for": "Frontend Developer",
+    "evaluation_timestamp": "2025-09-09T11:48:29.090Z",
+    "current_step": "completed",
+    "errors": []
+  }
+};
