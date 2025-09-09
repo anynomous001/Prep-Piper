@@ -1,6 +1,6 @@
-export const demoInterviewData = {
+export const demoInterviewData  = {
   tech_stack: "React, JavaScript, TypeScript, CSS, HTML, Next.js",
-  position: "Frontend Developer",
+  position: "Frontend Developer", 
   question_count: 5,
   difficulty: "intermediate",
   conversation_history: [
@@ -9,44 +9,44 @@ export const demoInterviewData = {
       content: "Hello! I'm Prep Piper, your AI interviewer for today's Frontend Developer interview. I see your tech stack includes: React, JavaScript, TypeScript, CSS, HTML, Next.js. Let's start with something fundamental. Can you explain what React hooks are and describe a project where you've used useState and useEffect effectively?"
     },
     {
-      role: "candidate", 
-      content: "React hooks are functions that let you use state and lifecycle features in functional components. useState manages component state, while useEffect handles side effects like API calls. In my e-commerce project, I used useState to manage cart items and product filters. I used useEffect to fetch product data when the component mounted and to update the URL parameters when filters changed. For example, useEffect(() => { fetchProducts(filters); }, [filters]) would refetch products whenever filters updated."
-    },
-    {
-      role: "interviewer",
-      content: "That's a solid example! Now, let's dive deeper into performance. You mentioned fetching products when filters change. How would you optimize this if the API calls were expensive and users were typing quickly in a search filter? What React patterns or techniques would you use?"
-    },
-    {
       role: "candidate",
-      content: "I'd implement debouncing to avoid excessive API calls. I could create a custom hook useDebounce that delays the API call until the user stops typing for a certain period, like 300ms. I'd also use useMemo to memoize expensive calculations and React.memo to prevent unnecessary re-renders of child components. For the search results, I might implement virtual scrolling if there are many items. Additionally, I'd add loading states and error handling to improve user experience during API calls."
+      content: "Um, React hooks are like... functions I think? I know useState is for making variables and useEffect is for... doing stuff? I used them in a project once but I mostly just copied code from Stack Overflow. I think useState was like useState(0) or something and useEffect was for when the page loads maybe? I'm not really sure how they work exactly but they seem to make things work."
     },
     {
       role: "interviewer", 
-      content: "Excellent performance considerations! Let's talk about TypeScript integration. You have TypeScript in your tech stack. How do you handle type safety when working with API responses in a React application? Can you walk me through typing a component that displays user data from an API?"
+      content: "I see. Let's try to go deeper into performance. How would you optimize a React application if it was running slowly? What techniques or patterns would you use to improve performance?"
     },
     {
       role: "candidate",
-      content: "I start by defining interfaces for the API response structure. For example: interface User { id: string; name: string; email: string; avatar?: string; }. Then I create a typed custom hook like useUser that returns { user: User | null, loading: boolean, error: string | null }. In the component, I use these types: const UserProfile: React.FC<{ userId: string }> = ({ userId }) => { const { user, loading, error } = useUser(userId); }. I also use type guards or libraries like Zod to validate API responses at runtime, ensuring the data matches our expected types."
+      content: "Performance? Hmm, I guess... make the code faster? I don't really know about performance stuff. Maybe use less CSS? I heard about something called useMemo but I never used it. Usually when my apps are slow I just refresh the page and hope it gets better. I don't really know what makes React apps slow or fast to be honest."
     },
     {
       role: "interviewer",
-      content: "Great approach to type safety! Now let's discuss CSS and styling. How do you approach responsive design in modern React applications? What's your preferred method for handling different screen sizes and why?"
+      content: "Let's talk about TypeScript since it's in your tech stack. How do you use TypeScript in your React projects? Can you explain the benefits and show me how you'd type a simple component?"
+    },
+    {
+      role: "candidate", 
+      content: "TypeScript is just JavaScript but harder, right? I tried to use it once but it kept showing red errors everywhere so I just added 'any' to everything to make the errors go away. I don't really understand why people use it. My components usually look like function Component(props: any) { return <div>{props.data}</div>; }. I know I should learn it better but regular JavaScript works fine for me."
+    },
+    {
+      role: "interviewer",
+      content: "How do you handle responsive design in your applications? What's your approach to making websites work on different screen sizes?"
     },
     {
       role: "candidate",
-      content: "I prefer a mobile-first approach using CSS-in-JS libraries like styled-components or CSS modules with Tailwind CSS. I define breakpoints as constants and use them consistently. For complex layouts, I use CSS Grid and Flexbox. I also implement container queries for component-level responsiveness. For example, a Card component might have different layouts based on its container size, not just viewport size. I test responsiveness using Chrome DevTools and real devices, ensuring touch targets are at least 44px for accessibility."
+      content: "Responsive design... that's when websites work on phones too right? I usually just make everything really small and hope it fits. Sometimes I use CSS but I'm not very good with it. I heard about flexbox but it's confusing. Most of the time I just test on my laptop and assume it works on other devices. I don't really know about breakpoints or media queries."
     },
     {
       role: "interviewer",
-      content: "Perfect! Final question - let's talk about Next.js since it's in your stack. You're building an e-commerce product page that needs to be SEO-friendly and fast. How would you structure this page using Next.js features, and what rendering strategy would you choose?"
+      content: "Finally, let's discuss Next.js. You have it listed in your tech stack. Can you tell me about the different rendering strategies in Next.js and when you would use each one?"
     },
     {
       role: "candidate",
-      content: "I'd use Static Site Generation (SSG) with getStaticPaths and getStaticProps for product pages since they're relatively static and SEO is crucial. I'd implement Incremental Static Regeneration (ISR) to update product data periodically without rebuilding the entire site. For dynamic content like reviews or inventory status, I'd use client-side fetching with SWR. I'd optimize images using Next.js Image component with proper sizing and lazy loading. For SEO, I'd use next/head for meta tags and implement structured data for rich snippets. The file structure would be pages/products/[slug].tsx for dynamic routing."
+      content: "Next.js is like React but... bigger? I think it makes websites faster somehow. I don't really know about rendering strategies. I just run 'npm start' and it works. I know there's something called SSR and SSG but I couldn't tell you what they mean or when to use them. I mostly just use Next.js because it was already set up in the project I joined. The routing is automatic I think which is nice."
     },
     {
-      role: "interviewer",
-      content: "🏁 **Interview Complete!** Thank you for participating in this Frontend Developer interview! 📊 **Session Summary:** - Questions Answered: 5/5 - Tech Stack Covered: React, JavaScript, TypeScript, CSS, HTML, Next.js - Performance optimizations, TypeScript integration, responsive design, and Next.js SSG discussed - Final Assessment: Strong intermediate-level frontend developer with good understanding of modern React ecosystem"
+      role: "interviewer", 
+      content: "🏁 **Interview Complete!** Thank you for participating in this Frontend Developer interview! 📊 **Session Summary:** - Questions Answered: 5/5 - Tech Stack Covered: React, JavaScript, TypeScript, CSS, HTML, Next.js - Significant knowledge gaps identified across all technical areas - Final Assessment: Requires substantial additional learning and development"
     }
   ]
 };
