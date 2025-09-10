@@ -1,12 +1,12 @@
 {
   "name": "backend2",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsc -b && node ./dist/index.js",
+    "dev": "tsc -b && node ./dist/main.js",
     "build": "tsc -b",
-    "start": "node ./dist/index.js"
+    "start": "node ./dist/main.js"
   },
   "keywords": [],
   "author": "",

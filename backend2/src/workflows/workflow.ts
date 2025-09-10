@@ -10,8 +10,8 @@ import {
     TechnicalSkillAssessmentSchema,
     FinalReportOutputSchema,
     InterviewData
-} from './schema';
-import { demoInterviewData } from "./data/data";
+} from '../schemas/schema';
+import { demoInterviewData } from "../data/data";
 
 
 

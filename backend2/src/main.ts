@@ -2,7 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import { config } from 'dotenv';
-import { runInterviewEvaluation } from './workflow';
+import { runInterviewEvaluation } from './workflows/workflow';
 
 // Load environment variables
 config();
