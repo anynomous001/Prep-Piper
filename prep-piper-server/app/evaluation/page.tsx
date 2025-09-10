@@ -1,12 +1,12 @@
 'use client'
 
 import React from 'react'
-import EvaluationResults from '../../components/evaluation/EvaluationResults'
+import EvaluationPage from '../../components/evaluation/EvaluationResults'
 
-const EvaluationPage = () => {
+const EvaluationPageWrapper = () => {
   return (
-    <div>{<EvaluationResults />}</div>
+    <div>{<EvaluationPage />}</div>
   )
 }
 
-export default EvaluationPage
+export default EvaluationPageWrapper
