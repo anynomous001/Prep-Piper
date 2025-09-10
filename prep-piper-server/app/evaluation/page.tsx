@@ -6,12 +6,18 @@ import EvaluationResults from '../../components/evaluation/EvaluationResults'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 const EvaluationPageWrapper = () => {
   const router = useRouter();
   const [evaluationData, setEvaluationData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+const {data: session, status} = useSession();
+
+console.log('👤 Session data:', session?.user?.name, 'Status:', status);
+
 
   useEffect(() => {
     try {
@@ -54,7 +60,7 @@ const EvaluationPageWrapper = () => {
             <p className="text-gray-300 mb-6">{error}</p>
             <div className="space-y-3">
               <Button 
-                onClick={() => router.push('/interview')}
+                onClick={() => router.push('/tech-selection')}
                 className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
               >
                 Start New Interview
@@ -74,7 +80,7 @@ const EvaluationPageWrapper = () => {
     );
   }
 
-  return <EvaluationResults data={evaluationData} />;
+  return <EvaluationResults data={evaluationData} candidate_name={session?.user?.name || "Candidate"} />;
 };
 
 export default EvaluationPageWrapper;

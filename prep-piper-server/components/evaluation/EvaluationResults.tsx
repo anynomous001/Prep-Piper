@@ -23,6 +23,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { EvaluationData } from "@/lib/types"
+import { ArrowLeft } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 
 
@@ -126,12 +128,15 @@ const demoData: EvaluationData = {
 
 
 export default function EvaluationResults({
-  data,
+  data, candidate_name
 }: {
-  data?: EvaluationData
+    data?: EvaluationData,
+    candidate_name?: string
 }) {
   const [tab, setTab] = useState<"overview" | "technical" | "problemsolving" | "development">("overview")
   const [score, setScore] = useState(0)
+const router = useRouter();
+
 
   useEffect(() => {
     console.log("[v0] EvaluationResults data:", data)
@@ -206,6 +211,7 @@ export default function EvaluationResults({
           {/* Overall Score Card */}
           <Card className="bg-gray-900/50 border-gray-800 backdrop-blur hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
             <CardContent className="text-center p-8">
+              <h1 className="text-3xl font-semibold text-teal-400 mb-6">{candidate_name}</h1>
               <h2 className="text-xl font-semibold text-gray-200 mb-6">Overall Score</h2>
               <div className="relative w-32 h-32 mx-auto mb-6">
                 <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
@@ -768,15 +774,22 @@ export default function EvaluationResults({
               <h3 className="text-lg font-semibold text-gray-200">What's Next?</h3>
               <p className="text-gray-400">Take action based on this evaluation</p>
             </div>
-            <div className="flex space-x-4">
-              <Button className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white transition-all duration-300 hover:scale-105 hover:cursor-pointer">
-                <Award className="w-4 h-4 mr-2" />
-                Generate Report
-              </Button>
-              <Button className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white transition-all duration-300 hover:scale-105 hover:cursor-pointer">
-                <Zap className="w-4 h-4 mr-2" />
-                Schedule Follow-up
-              </Button>
+          
+            <div className="flex space-x-3">
+                          <Button 
+                            onClick={() => router.push('/tech-selection')}
+                            className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
+                          >
+                            Start New Interview
+                          </Button>
+                          <Button 
+                            onClick={() => router.push('/')}
+                            variant="outline"
+                            className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
+                          >
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Go Home
+                          </Button>
             </div>
           </CardFooter>
         </Card>
@@ -784,3 +797,5 @@ export default function EvaluationResults({
     </div>
   )
 }
+
+
