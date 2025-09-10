@@ -102,7 +102,7 @@ app.post('/evaluate', async (req, res) => {
             recommendation: "No Hire" as const,
             development_areas: [],
             evaluation_timestamp: "",
-            candidate_id: req.body.candidate_id || `candidate_${Date.now()}`
+            candidate_id: req.body.interview_data.candidate_id || `candidate_${Date.now()}`
         };
 
         console.log(`🚀 Starting evaluation for position: ${initialState.position_evaluated_for}`);
@@ -118,7 +118,7 @@ app.post('/evaluate', async (req, res) => {
         res.json({
             success: true,
             evaluation_id: result.candidate_id,
-            duration_ms: duration,
+            duration_ms: req.body.interview_data.duration || duration,
             timestamp: new Date().toISOString(),
             data: {
                 overall_score: result.overall_score,

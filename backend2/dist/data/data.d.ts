@@ -1,4 +1,5 @@
 export declare const demoInterviewData: {
+    candidate_id: string;
     tech_stack: string;
     position: string;
     question_count: number;

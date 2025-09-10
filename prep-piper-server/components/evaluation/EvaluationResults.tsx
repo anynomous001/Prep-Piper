@@ -22,38 +22,9 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { EvaluationData } from "@/lib/types"
 
-interface EvaluationData {
-  success: boolean
-  evaluation_id: string
-  duration_ms: number
-  timestamp: string
-  data: {
-    overall_score: number
-    recommendation: "Strong Hire" | "Hire" | "No Hire" | "Strong No Hire"
-    key_strengths: string[]
-    critical_weaknesses: string[]
-    development_areas: string[]
-    technical_skills: Array<{
-      skill_name: string
-      proficiency_level: "beginner" | "intermediate" | "advanced" | "expert"
-      evidence: string[]
-      confidence: "low" | "medium" | "high" | "very_high"
-      comments: string
-    }>
-    problem_solving_instances: Array<{
-      problem_statement: string
-      solution: string
-      approach_quality: number
-      solution_effectiveness: number
-      reasoning_clarity: number
-    }>
-    position_evaluated_for: string
-    evaluation_timestamp: string
-    current_step: string
-    errors: string[]
-  }
-}
+
 
 const demoData: EvaluationData = {
   success: true,
@@ -155,7 +126,7 @@ const demoData: EvaluationData = {
 
 
 export default function EvaluationResults({
-  data = demoData,
+  data,
 }: {
   data?: EvaluationData
 }) {

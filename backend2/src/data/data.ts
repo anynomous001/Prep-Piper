@@ -1,4 +1,5 @@
 export const demoInterviewData  = {
+  candidate_id: "candidate_123",
   tech_stack: "React, JavaScript, TypeScript, CSS, HTML, Next.js",
   position: "Frontend Developer", 
   question_count: 5,
