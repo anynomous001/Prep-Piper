@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge"
 import { EvaluationData } from "@/lib/types"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { MessageSquare } from "lucide-react"
 
 
 
@@ -778,14 +779,15 @@ const router = useRouter();
             <div className="flex space-x-3">
                           <Button 
                             onClick={() => router.push('/tech-selection')}
-                            className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
+                            className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
                           >
-                            Start New Interview
+                            Let us know you thoughts
+                            <MessageSquare className="w-4 h-4 ml-2" />
                           </Button>
                           <Button 
                             onClick={() => router.push('/')}
                             variant="outline"
-                            className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
+                            className="flex-1  border-gray-600 text-gray-300 hover:bg-gray-700"
                           >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             Go Home
