@@ -21,12 +21,7 @@ import { CheckCircle } from "lucide-react"
 import { Award } from "lucide-react"
 import { AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
-import {config} from 'dotenv';
 
-
-
-
-config();
 
 
 export default function InterviewPage() {
@@ -36,6 +31,8 @@ export default function InterviewPage() {
   const [showEndDialog, setShowEndDialog] = useState(false)
   const [isEvaluating, setIsEvaluating] = useState(false);
 const [evaluationError, setEvaluationError] = useState<string | null>(null);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL!
 
   const {
     connectionState,
@@ -61,7 +58,7 @@ const [evaluationError, setEvaluationError] = useState<string | null>(null);
   } = useInterview()
 
 
-console.log(process.env.BACKEND_URL);
+console.log(API_URL);
 
   // Load tech selection from localStorage
   useEffect(() => {
@@ -140,7 +137,7 @@ const handleViewEvaluation = async () => {
     console.log('🚀 Sending evaluation request:', evaluationPayload);
 
     // Call your backend API
-    const response = await fetch(`${process.env.BACKEND_URL}/evaluate`, {
+    const response = await fetch(`${API_URL}/evaluate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
