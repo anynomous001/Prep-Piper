@@ -1,6 +1,8 @@
 // app/api/evaluate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
+console.log('🔄 API route /api/evaluate called' + process.env.BACKEND_URL);
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -8,7 +10,7 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Forwarding evaluation request to backend...');
 
     // Forward the request to your Express backend
-    const backendResponse = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3002'}/evaluate`, {
+    const backendResponse = await fetch('http://localhost:3002/evaluate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

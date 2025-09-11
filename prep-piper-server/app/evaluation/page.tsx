@@ -18,7 +18,6 @@ const {data: session, status} = useSession();
 
 console.log('👤 Session data:', session?.user?.name, 'Status:', status);
 
-
   useEffect(() => {
     try {
       // Try to load evaluation data from localStorage
