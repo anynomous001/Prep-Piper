@@ -26,7 +26,7 @@ import { EvaluationData } from "@/lib/types"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { MessageSquare } from "lucide-react"
-import FeedbackForm from "./feedback-form"
+import FeedbackForm from "@/components/evaluation/feedback-form"
 
 
 
@@ -794,7 +794,7 @@ const router = useRouter();
   </Tabs>
 </Card>
 
-<motion.div variants={itemVariants} className="mt-12">
+<motion.div variants={itemVariants} className="flex justify-center my-40 w-full">
           <FeedbackForm />
         </motion.div>
 
