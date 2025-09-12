@@ -26,6 +26,7 @@ import { EvaluationData } from "@/lib/types"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { MessageSquare } from "lucide-react"
+import FeedbackForm from "./feedback-form"
 
 
 
@@ -127,6 +128,31 @@ const demoData: EvaluationData = {
   }
 };
 
+
+ const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      },
+    },
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.95 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100,
+        damping: 15,
+      },
+    },
+  }
 
 export default function EvaluationResults({
   data, candidate_name
@@ -768,33 +794,37 @@ const router = useRouter();
   </Tabs>
 </Card>
 
+<motion.div variants={itemVariants} className="mt-12">
+          <FeedbackForm />
+        </motion.div>
+
         {/* Action Buttons */}
-        <Card className="bg-gray-900/50 border-gray-800 backdrop-blur hover:shadow-2xl transition-all duration-300">
-          <CardFooter className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 p-8">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-200">What's Next?</h3>
-              <p className="text-gray-400">Take action based on this evaluation</p>
-            </div>
-          
-            <div className="flex space-x-3">
-                          <Button 
-                            onClick={() => router.push('/tech-selection')}
-                            className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
-                          >
-                            Let us know you thoughts
-                            <MessageSquare className="w-4 h-4 ml-2" />
-                          </Button>
-                          <Button 
-                            onClick={() => router.push('/')}
-                            variant="outline"
-                            className="flex-1  border-gray-600 text-gray-300 hover:bg-gray-700"
-                          >
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Go Home
-                          </Button>
-            </div>
-          </CardFooter>
-        </Card>
+       <motion.div variants={itemVariants} className="mt-12">
+          <Card className="bg-gray-900/50 border-gray-800 backdrop-blur hover:shadow-2xl transition-all duration-500 hover:border-teal-500/30 relative z-10">
+            <CardFooter className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 p-8">
+              <div>
+                <h3 className="text-lg font-semibold bg-gradient-to-r from-teal-300 to-cyan-300 bg-clip-text text-transparent">
+                  What's Next?
+                </h3>
+                <p className="text-gray-400">Take action based on this evaluation</p>
+              </div>
+              <div className="flex space-x-4">
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-teal-500/25">
+                    <Award className="w-4 h-4 mr-2" />
+                    Generate Report
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-purple-500/25">
+                    <Zap className="w-4 h-4 mr-2" />
+                    Schedule Follow-up
+                  </Button>
+                </motion.div>
+              </div>
+            </CardFooter>
+          </Card>
+        </motion.div>
       </div>
     </div>
   )

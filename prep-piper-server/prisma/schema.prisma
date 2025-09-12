@@ -23,6 +23,7 @@ model User {
   approved  Boolean @default(false)
 
   accounts      Account[]
+  feedback      UserFeedback?
 
   @@map("users")
 }
@@ -45,4 +46,18 @@ model Account {
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
+}
+
+
+model UserFeedback {
+  id         Int      @id @default(autoincrement())
+  userId     String   @unique
+  rating     Int
+  comments   String?  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  User       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    @@map("user_feedback")
+
 }
